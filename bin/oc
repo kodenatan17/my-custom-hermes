@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Run OpenCode agents/commands from any tool (Cline, Claude Code, plain shell).
+# The opencode office-bridge plugin streams the run to the visualizer, so the real agents light up.
+#
+#   oc agent <name> "<prompt>"     e.g. oc agent scout "find where login tokens are stored"
+#   oc cmd <command> "<args>"      e.g. oc cmd feature "add pull-to-refresh on garden list"
+set -euo pipefail
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+kind="${1:-}"; name="${2:-}"; shift 2 2>/dev/null || true
+[ -n "$kind" ] && [ -n "$name" ] || { sed -n '2,7p' "$0"; exit 2; }
+[[ $name =~ ^[a-z][a-z0-9-]*$ ]] || { echo "invalid name: $name" >&2; exit 2; }
+case "$kind" in
+  # Subagents cannot be `run --agent` targets (opencode falls back to the default agent), so route via the orchestrator.
+  agent) exec opencode run --dir "$ROOT" --agent orchestrator \
+           "Delegate exactly this task to the \`$name\` subagent using the task tool (subagent_type \"$name\"), do nothing else yourself, and return its result: $*" ;;
+  cmd)   exec opencode run --dir "$ROOT" --command "$name" -- "$@" ;;
+  *)     echo "unknown kind: $kind (use agent|cmd)" >&2; exit 2 ;;
+esac

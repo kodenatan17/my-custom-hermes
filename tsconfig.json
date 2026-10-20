@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowJs": false,
+    "types": ["bun-types"]
+  },
+  "include": ["plugins/**/*.ts", "bridge/**/*.d.mts"],
+  "exclude": ["node_modules", "visualizer", "archive"]
+}

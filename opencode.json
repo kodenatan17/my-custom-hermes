@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "orchestrator",
+  "tools": {
+    "hermes-memory_*": false
+  },
+  "agent": {
+    "general": { "disable": true },
+    "explore": { "disable": true }
+  }
+}

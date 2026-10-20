@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "ttlSeconds": 600,
+  "waiterTtlSeconds": 30,
+  "agingSeconds": 120,
+  "liveSeconds": 120,
+  "supersedeIdleSeconds": 10,
+  "breakerDenials": 2,
+  "breakerWindowSeconds": 60,
+  "maxWaitSeconds": { "claude": 8, "cline": 45, "opencode": 20 },
+  "onConflict": { "cline": "wait", "claude": "deny", "opencode": "deny" },
+  "pollMs": 1000,
+  "priorityDefault": "normal",
+  "priorityRank": { "high": 0, "normal": 1, "low": 2 },
+  "phaseOrder": ["slicing", "integration"],
+  "phaseDefault": "integration",
+  "phaseByAgent": { "coder": "slicing", "qa": "integration", "reviewer": "integration", "devops": "integration", "documenter": "integration" },
+  "pathRules": [{ "match": "^seedly_app/lib/features/([^/]+)/", "feature": "$1" }],
+  "sharedPaths": ["^seedly_app/pubspec\\.(yaml|lock)$", "^seedly_app/lib/cores/router/", "^seedly_app/lib/cores/dependency/"]
+}

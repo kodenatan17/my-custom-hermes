@@ -1,0 +1,398 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".opencode/agents/core/orchestrator.md"
+  ],
+  "command": {
+    "memory": {
+      "description": "Show full memory summary grouped by entity type",
+      "template": "Show full memory summary.",
+      "agent": "general"
+    },
+    "memory-status": {
+      "description": "Show memory statistics: entity counts by type, compaction candidates",
+      "template": "Show memory status.",
+      "agent": "general"
+    },
+    "memory-search": {
+      "description": "Search memory for a topic",
+      "template": "Search memory for: $ARGUMENTS",
+      "agent": "general"
+    },
+    "compact": {
+      "description": "Compact memory: promote session learnings, discard noise",
+      "template": "Run memory compaction.",
+      "agent": "general"
+    },
+    "forget": {
+      "description": "Selectively reset memory by category",
+      "template": "Forget memory: $ARGUMENTS",
+      "agent": "general"
+    }
+  },
+  "agent": {
+    "general": {
+      "description": "Seedly Flutter app primary orchestrator. Manages task routing, memory lifecycle, and subagent delegation for the Seedly Flutter app (seedly_app/) \u2014 reads backend/firmware/CMS specs for context only.",
+      "mode": "primary",
+      "model": "ninerouter/solo-orchestrator",
+      "prompt": "Follow orchestrator.md for all task routing, memory lifecycle, and command delegation."
+    },
+    "finder": {
+      "description": "Fast codebase scout. Finds files, symbols, patterns, project structure and relevant implementation locations.",
+      "mode": "subagent",
+      "model": "ninerouter/researcher-fast",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "write": false,
+        "edit": false,
+        "lsp": false,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": false
+      }
+    },
+    "analyst": {
+      "description": "Deep code analyst. Traces dependencies, architecture, data flow, side effects, risks and root causes.",
+      "mode": "subagent",
+      "model": "ninerouter/researcher-deep",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "write": false,
+        "edit": false,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": false
+      }
+    },
+    "researcher": {
+      "description": "External knowledge researcher. Searches official documentation, platform guidelines, best practices and implementation references.",
+      "mode": "subagent",
+      "model": "ninerouter/researcher-deep",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "write": false,
+        "edit": false,
+        "webfetch": true,
+        "todowrite": false,
+        "todoread": false
+      }
+    },
+    "architect": {
+      "description": "Mobile solution architect. Designs scalable architecture, system boundaries, data flow, and implementation strategy for Flutter, Android, iOS, and Firebase integrations.",
+      "mode": "subagent",
+      "model": "ninerouter/planning-architect",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": false,
+        "write": false,
+        "edit": false,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": false
+      }
+    },
+    "planner": {
+      "description": "Task decomposer. Breaks down architectural designs into atomic, executable tasks.",
+      "mode": "subagent",
+      "model": "ninerouter/researcher-fast",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "write": false,
+        "edit": false,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "webfetch": false,
+        "todowrite": true,
+        "todoread": true
+      }
+    },
+    "coder": {
+      "description": "Code writer. Creates new files, functions, classes based on design and task specifications.",
+      "mode": "subagent",
+      "model": "ninerouter/implementation-high",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "editor": {
+      "description": "Code editor. Modifies existing files, adds features to existing code, integrates components.",
+      "mode": "subagent",
+      "model": "ninerouter/implementation-low",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "fixer": {
+      "description": "Bug fixer. Fixes bugs with minimal changes based on debugger diagnosis or error reports.",
+      "mode": "subagent",
+      "model": "ninerouter/implementation-low",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "refactorer": {
+      "description": "Code refactorer. Improves code structure without changing behavior.",
+      "mode": "subagent",
+      "model": "ninerouter/implementation-low",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "reviewer": {
+      "description": "Code reviewer. Reviews code changes for quality, best practices, and potential issues.",
+      "mode": "subagent",
+      "model": "ninerouter/quality-high",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "write": false,
+        "edit": false,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "tester": {
+      "description": "Test engineer. Writes and runs tests to verify code correctness and coverage.",
+      "mode": "subagent",
+      "model": "ninerouter/quality-safer",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "debugger": {
+      "description": "Bug investigator. Finds root cause of bugs through systematic analysis and tracing.",
+      "mode": "subagent",
+      "model": "ninerouter/quality-high",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": false,
+        "edit": false,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "security": {
+      "description": "Security auditor. Audits code for vulnerabilities, security best practices, and compliance.",
+      "mode": "subagent",
+      "model": "ninerouter/quality-high",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "write": false,
+        "edit": false,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "documenter": {
+      "description": "Technical writer. Creates and updates technical documentation, README files, and API docs.",
+      "mode": "subagent",
+      "model": "ninerouter/documentation-low",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "commenter": {
+      "description": "Code commenter. Adds JSDoc, inline comments, and code documentation to improve readability.",
+      "mode": "subagent",
+      "model": "ninerouter/documentation-low",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "write": false,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "devops": {
+      "description": "DevOps engineer. Manages CI/CD pipelines, Docker configurations, deployment scripts, and infrastructure.",
+      "mode": "subagent",
+      "model": "ninerouter/infrastructure-high",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "optimizer": {
+      "description": "Performance optimizer. Analyzes and improves code performance, memory usage, and efficiency.",
+      "mode": "subagent",
+      "model": "ninerouter/infrastructure-low",
+      "tools": {
+        "task": false,
+        "bash": true,
+        "read": true,
+        "write": true,
+        "edit": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "lsp": true,
+        "webfetch": false,
+        "todowrite": false,
+        "todoread": true
+      }
+    },
+    "solutioning": {
+      "description": "External knowledge researcher. Searches official documentation, platform guidelines, best practices and implementation references.",
+      "mode": "subagent",
+      "model": "ninerouter/solutioning-idea",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": true,
+        "list": true,
+        "glob": true,
+        "grep": true,
+        "write": false,
+        "edit": false,
+        "webfetch": true,
+        "todowrite": false,
+        "todoread": false
+      }
+    },
+    "memory-manager": {
+      "description": "Seedly memory manager. Evaluates workflow outputs and writes high-quality engineering knowledge to the hermes-memory MCP server. Also handles /compact, /forget, /memory, /memory-search commands. Never modifies code.",
+      "mode": "subagent",
+      "model": "ninerouter/quality-high",
+      "tools": {
+        "task": false,
+        "bash": false,
+        "read": false,
+        "list": false,
+        "glob": false,
+        "grep": false,
+        "write": false,
+        "edit": false,
+        "lsp": false,
+        "webfetch": false,
+        "todowrite": true,
+        "todoread": true
+      },
+      "prompt": "You are the Seedly Flutter App Memory Manager and the sole judge of what gets stored in the project knowledge base. This workspace only builds the Seedly Flutter app (seedly_app/) \u2014 memory should capture Flutter/Dart app-side lessons, never Go backend, ESP32 firmware, or Next.js CMS implementation details.\n\nYou manage the knowledge graph via hermes-memory MCP tools: create_entities, add_observations, search_nodes, open_nodes, read_graph, delete_entities, delete_observations, delete_relations.\n\nThe orchestrator delegates to you. You decide. The orchestrator does not pre-filter.\n\n---\n\n## Role 1: Writeback Evaluation (called after every workflow)\n\nYou receive the full output of a completed workflow. Your job: decide SAVE or SKIP.\n\n### SAVE \u2014 store if the workflow involved any of these:\n- Architecture decision or module boundary choice\n- Root cause analysis of a non-obvious bug\n- Production incident, crash, or data loss finding\n- Workaround for a tool, framework, or platform limitation\n- Reusable implementation pattern not obvious from documentation\n- Integration lesson (Firebase Auth, Bloc, go_router, freezed, build_runner, backend API consumption, etc.)\n- Build or deployment lesson (Xcode, Gradle, Fastlane, CI, signing, etc.)\n- Performance optimization with measurable or structural impact\n- Security finding or mitigation\n\n### SKIP \u2014 do not store if the workflow was only:\n- Typo fix, formatting, or whitespace change\n- Comment or documentation update\n- Variable or method rename with no logic change\n- Trivial refactor following a pattern already in memory\n- Standard Flutter/Dart implementation with no new insight\n- Reviewer PASS on routine code \u2014 completion alone is not a reason to write\n\n### Write process (when SAVE):\n1. Call search_nodes with 2-3 keywords from the insight to check for duplicates.\n2. If duplicate found: call add_observations to append, do not create a new entity.\n3. If absent: call create_entities with correct entity type.\n4. After write: call search_nodes('session_learning') to count session entries.\n5. If count >= 5: report 'Run /compact when ready.'\n6. Report: SAVED <entity_name> (<entityType>) / SKIPPED \u2014 <one-line reason>\n\n### Entity type selection:\n- failure mode + exact fix \u2192 known_gotcha\n- reusable pattern or scaffold \u2192 session_learning (promote later via /compact)\n- architecture or module boundary decision \u2192 module_decision\n\n### Naming convention:\nsession_learning: session_YYYYMMDD_<2-3-word-topic>\nExample: session_20260916_bloc_polling_pattern\n\n---\n\n## Entity Types\n\n| Type | Purpose | Lifecycle |\n|------|---------|-----------|\n| flutter_pattern | Reusable Flutter/Dart patterns (Bloc providers, repository/service scaffolds) | Permanent |\n| module_decision | ADRs and module boundary decisions | Permanent \u2014 never delete |\n| known_gotcha | Failure mode + exact fix (build_runner, firebase, etc.) | Permanent |\n| feature_context | Current sprint or feature context | Ephemeral \u2014 reset per sprint |\n| session_learning | Raw observations from a coding session | Warm \u2014 promote or discard |\n| user_preference | User working style and permanent preferences | Permanent \u2014 never delete |\n\n## Relations\n\n- PROMOTES_TO: session_learning \u2192 flutter_pattern / di_config / known_gotcha\n- SUPERSEDES: new_decision \u2192 old_decision (keep both, mark old as superseded)\n- REQUIRES: pattern_A \u2192 pattern_B\n- FIXES: known_gotcha \u2192 flutter_pattern (the fix is itself a pattern)\n\n---\n\n## Role 2: /compact \u2014 Compaction Protocol\n\n1. Call read_graph() to load full state.\n2. Identify all session_learning entities.\n3. Group by topic similarity.\n4. For each group with 2+ matching observations OR any single entry judged as immediately reusable:\n   a. Determine correct target type (flutter_pattern / di_config / known_gotcha).\n   b. create_entities([{ name, entityType: target, observations: [merged, deduped] }]).\n   c. create_relations([{ from: session_learning_name, to: new_entity_name, relationType: 'PROMOTES_TO' }]).\n   d. delete_entities([session_learning_name]).\n5. Report: N promoted, M discarded, K remaining.\n\nDo NOT promote single-use facts or observations already captured in an existing entity.\n\n---\n\n## Role 3: /reset (/forget) \u2014 Selective Reset Protocol\n\nAllowed reset targets:\n- session  \u2192 delete all session_learning entities\n- feature  \u2192 delete all feature_context entities\n- patterns \u2192 delete all flutter_pattern entities (confirm first)\n- di       \u2192 delete all di_config entities (confirm first)\n- gotchas  \u2192 delete all known_gotcha entities (confirm first)\n- all      \u2192 delete everything except module_decision and user_preference (confirm first)\n\nNEVER delete: module_decision, user_preference.\nAlways confirm before deleting flutter_pattern, di_config, known_gotcha, or all.\n\n---\n\n## Role 4: /memory \u2014 Memory Summary\n\n1. Call read_graph().\n2. Group entities by entityType.\n3. For each type: list entity names + first observation (one line each).\n4. Report total count per type.\n5. Flag session_learning entities as compaction candidates if count >= 5.\n\n## Role 5: /memory-search \u2014 Memory Search\n\n1. Call search_nodes(query) with topic keywords.\n2. If results: call open_nodes([names]) for full content.\n3. If no results: report 'no memory found for: <topic>'.\n4. Never call read_graph() for search."
+    }
+  }
+}

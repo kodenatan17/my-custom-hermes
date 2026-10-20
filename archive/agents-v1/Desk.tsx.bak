@@ -1,0 +1,90 @@
+import { useFrame } from "@react-three/fiber"
+import { useRef } from "react"
+import type { MeshStandardMaterial } from "three"
+import type { Agent } from "../agents"
+import { CATEGORY_STYLE } from "../agents"
+import type { AgentState } from "../office"
+
+type Props = {
+  agent: Agent
+  state?: AgentState
+  position: [number, number, number]
+  onSelect: (id: string) => void
+}
+
+const WOOD = "#f3efe8"
+const METAL = "#2f3137"
+
+export function Desk({ agent, state, position, onSelect }: Props) {
+  const status = state?.status ?? "idle"
+  const style = CATEGORY_STYLE[agent.category]
+  const screen = useRef<MeshStandardMaterial>(null!)
+  const statusRef = useRef(status)
+  statusRef.current = status
+
+  useFrame(({ clock }) => {
+    const working = statusRef.current === "working"
+    screen.current.emissiveIntensity = working ? 0.75 + Math.sin(clock.elapsedTime * 6) * 0.15 : 0.12
+  })
+
+  const screenColor = status === "error" ? "#ef4444" : status === "working" ? style.color : "#9aa3b2"
+
+  return (
+    <group position={position} onClick={(e) => (e.stopPropagation(), onSelect(agent.id))}>
+      {/* desk */}
+      <mesh position={[0, 0.74, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.7, 0.06, 0.85]} />
+        <meshStandardMaterial color={WOOD} />
+      </mesh>
+      {[-0.8, 0.8].map((x) => (
+        <mesh key={x} position={[x, 0.37, 0]} castShadow>
+          <boxGeometry args={[0.05, 0.74, 0.8]} />
+          <meshStandardMaterial color="#e2ddd4" />
+        </mesh>
+      ))}
+      {/* monitor */}
+      <mesh position={[0, 0.9, -0.28]}>
+        <boxGeometry args={[0.06, 0.26, 0.06]} />
+        <meshStandardMaterial color={METAL} />
+      </mesh>
+      <mesh position={[0, 1.17, -0.3]} castShadow>
+        <boxGeometry args={[0.92, 0.54, 0.05]} />
+        <meshStandardMaterial color={METAL} />
+      </mesh>
+      <mesh position={[0, 1.17, -0.272]}>
+        <planeGeometry args={[0.84, 0.46]} />
+        <meshStandardMaterial ref={screen} color="#1b1e24" emissive={screenColor} emissiveIntensity={0.12} />
+      </mesh>
+      {/* keyboard + mug */}
+      <mesh position={[0, 0.78, 0.05]}>
+        <boxGeometry args={[0.5, 0.02, 0.16]} />
+        <meshStandardMaterial color="#e8e8ea" />
+      </mesh>
+      <mesh position={[0.55, 0.81, 0.1]}>
+        <cylinderGeometry args={[0.045, 0.04, 0.09, 12]} />
+        <meshStandardMaterial color={style.color} />
+      </mesh>
+      {/* chair */}
+      <group position={[0, 0, 0.62]}>
+        <mesh position={[0, 0.46, 0]} castShadow>
+          <boxGeometry args={[0.5, 0.08, 0.48]} />
+          <meshStandardMaterial color="#353841" />
+        </mesh>
+        <mesh position={[0, 0.8, 0.24]} castShadow>
+          <boxGeometry args={[0.48, 0.58, 0.07]} />
+          <meshStandardMaterial color="#353841" />
+        </mesh>
+        <mesh position={[0, 0.22, 0]}>
+          <cylinderGeometry args={[0.03, 0.03, 0.42, 8]} />
+          <meshStandardMaterial color={METAL} />
+        </mesh>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <mesh key={i} position={[0, 0.04, 0]} rotation={[0, (i / 5) * Math.PI * 2, 0]}>
+            <boxGeometry args={[0.04, 0.03, 0.5]} />
+            <meshStandardMaterial color={METAL} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  )
+}
