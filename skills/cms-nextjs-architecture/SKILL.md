@@ -35,7 +35,7 @@ Sources: `garden-ai/solutioning/specs/domain/apps/CMS.md` (Tech Stack, Architect
 | Language | TypeScript (strict) |
 | Package manager | npm |
 | Styling | Tailwind CSS v4 (CSS-first config via `@theme` in `globals.css`) |
-| Components | shadcn/ui (Radix primitives) in `src/components/ui/` |
+| Components | shadcn/ui (Radix primitives) in `src/shared/ui/` — deferred until a second domain needs shared UI |
 | Tables | TanStack Table (`@tanstack/react-table`) |
 | Forms | React Hook Form + Zod (`@hookform/resolvers` for the Zod bridge) |
 | Icons | lucide-react |
@@ -46,9 +46,9 @@ Sources: `garden-ai/solutioning/specs/domain/apps/CMS.md` (Tech Stack, Architect
 | JWT helpers | jose (only if a spec requires it; the contract does not) |
 | Auth (identity) | Firebase client SDK for Google/Email sign-in; the Go API verifies the token |
 
-## Scaffold (run once, in the empty `growpico-cms/` folder)
+## Scaffold (already done — do not re-run)
 
-The folder exists and is empty. Run the commands from the workspace root. Confirm flags with `npx create-next-app@latest --help` at scaffold time.
+The app is scaffolded (Next 16, TS strict, Tailwind v4, `src/`, `@/*` alias). The block below is the historical scaffold, kept as reference: install only the dependencies a new domain actually needs, and pin versions from `npm view` at that time — never from memory.
 
 ```bash
 cd /Users/snpmac003/ferry-dev/seedly/growpico-cms
@@ -84,58 +84,42 @@ Do not add `jose` or `iron-session` features beyond what `cms-security-boundarie
 ```
 growpico-cms/
 ├── design/                          # PNG exports from design; named <domain>-<screen>[-<state>].png
-├── components.json                  # shadcn config (created by init)
 ├── next.config.ts                   # output: "standalone"
 ├── vitest.config.ts
+├── scripts/                         # boundaries.mjs (R1–R6), client-boundary.mjs, smoke.mjs
 ├── src/
-│   ├── proxy.ts                     # Next 16 request interception (was middleware.ts): unauth -> /login
-│   ├── app/
-│   │   ├── layout.tsx               # root: html, fonts, <Toaster />
-│   │   ├── globals.css              # tailwind v4 import, shadcn tokens, @theme brand tokens
-│   │   ├── (auth)/login/page.tsx    # sign-in (Firebase client) + mock role picker (mock mode only)
-│   │   ├── (dashboard)/
-│   │   │   ├── layout.tsx           # AppShell = sidebar + topbar; loads /auth/me; role-filters nav
-│   │   │   ├── loading.tsx          # route-group fallback skeleton
-│   │   │   ├── error.tsx            # route-group error boundary (client component)
-│   │   │   ├── not-found.tsx
-│   │   │   ├── page.tsx             # home / overview (OPEN: no spec defines it)
-│   │   │   ├── users/page.tsx, users/[id]/page.tsx
-│   │   │   ├── devices/...          # one folder per route in the table below
-│   │   │   └── .../                 # same pattern for every domain
-│   │   └── forbidden/page.tsx       # rendered when the API returns 403 forbidden_role
+│   ├── proxy.ts                     # Next 16 request interception (was middleware.ts): unauth -> /login (optimistic only)
+│   ├── app/                         # routing only: pages, layouts, loading/error/not-found
+│   │   ├── layout.tsx, globals.css, not-found.tsx
+│   │   ├── (auth)/login/page.tsx    # sign-in + mock credential picker (mock mode only)
+│   │   ├── (dashboard)/layout.tsx   # shell: header + nav, identity via requireSession()
+│   │   ├── (dashboard)/page.tsx     # home / overview (OPEN: no spec defines it)
+│   │   ├── (dashboard)/<domain>/... # one folder per route in the map below
+│   │   └── forbidden/page.tsx       # 403 forbidden_role / role mismatch
 │   ├── features/<domain>/
-│   │   ├── components/              # domain UI (client or server components)
-│   │   ├── schemas/                 # Zod: query params, form inputs, reason input
-│   │   ├── api/
-│   │   │   ├── queries.ts           # server-only read helpers (called from Server Components)
-│   │   │   └── actions.ts           # "use server" mutations (Server Actions)
-│   │   └── types.ts                 # request/response types for this domain (from contract)
-│   ├── lib/
-│   │   ├── api/
-│   │   │   ├── adapter.ts           # AdminApi interface (one namespace per domain)
-│   │   │   ├── contract.ts          # Page<T>, AdminApiError, ApiErrorCode, AuditRef, Role
-│   │   │   ├── client.ts            # adminApi(): picks adapter from CMS_API_MODE (server-only)
-│   │   │   ├── errors.ts            # AdminApiError class + toActionError() mapper
-│   │   │   └── adapters/
-│   │   │       ├── mock/            # fixtures + seeded generator + role/permission simulation
-│   │   │       └── go/              # fetch to CMS_API_BASE_URL with Bearer session token
-│   │   ├── auth/
-│   │   │   ├── session.ts           # iron-session read/write (server-only)
-│   │   │   └── guard.ts             # requireSession(), requireRole([...]) (server-only)
-│   │   ├── nav.ts                   # nav items: domain, href, allowed roles
-│   │   └── format.ts                # date/number/enum label helpers
-│   ├── components/
-│   │   ├── ui/                      # shadcn primitives (generated; do not hand-edit)
-│   │   └── shared/                  # CMS shared components (inventory in cms-ui-slicing)
-│   └── test/                        # shared test setup and fixtures helpers
+│   │   ├── domain/                  # entities/ + repositories/ (ports): pure, no framework
+│   │   ├── application/usecases/    # use cases orchestrating the ports
+│   │   ├── infrastructure/          # datasources/ + mappers/ + repositories/ (adapters)
+│   │   ├── presentation/            # actions/ ("use server") + components/
+│   │   ├── di/container.server.ts   # the single wiring point (server-only)
+│   │   ├── server.ts                # server-side public surface ("server-only")
+│   │   └── index.ts                 # client-safe surface: types + constants only
+│   └── shared/
+│       ├── config/config.ts         # env parsing + mode gates (server-only)
+│       ├── lib/api/                 # gateway.ts (sole backend gate), errors.ts
+│       ├── lib/auth/                # session.ts (iron-session), guard.ts (requireSession/requireRole)
+│       └── types/                   # cross-domain contract types (Role, AdminIdentity, AdminApi)
 └── e2e/                             # Playwright smoke (optional, see Testing)
 ```
 
 Rules:
-- `components/ui/` is generated by shadcn. Customize through tokens and wrappers in `components/shared/`, not by editing primitives.
-- A feature folder never imports from another feature folder. Shared pieces go to `components/shared/` or `lib/`.
-- Only `app/` route files and `features/*/api/*` may call `adminApi()`. Components receive data as props.
+- **Only `features/<domain>/server.ts`, `features/<domain>/di/**` and `shared/lib/api/gateway.ts` may call the gateway** (`adminApi()`); everything else receives data as props or through a use case. Enforced by `scripts/boundaries.mjs` R1–R6 — do not work around a lint error, fix the layering.
+- A feature never imports another feature; shared pieces go to `shared/` (or `features/<d>/domain` ports, type-only).
+- Layers point inward (`presentation → application → domain`, `infrastructure → domain`); no layer imports its own `server.ts`/`index.ts`.
+- `app/` is routing only: no business logic, no adapter construction; pages/layouts read through `features/<d>/server.ts`.
+- Auth kernel (guard, session, contracts) stays in `shared/` — not `features/auth` — because every domain needs it and features may not import each other.
 - Anything that touches the session or the Go API starts with `import "server-only";`.
+- Create `src/shared/ui/`, `src/providers/`, business `features/<d>/` and `app/api/**` only when a second consumer actually needs them.
 
 ## Server vs Client Components
 
@@ -146,40 +130,37 @@ Rules:
 
 ## Data fetching
 
-- Reads happen in Server Components through `features/<domain>/api/queries.ts`, which calls `adminApi()`.
+- Reads happen in Server Components through `features/<domain>/server.ts` (use case → gateway). A page never imports a layer folder or the adapter.
 - Authenticated responses must not be cached across users. The Go adapter uses `cache: "no-store"`. Use React `cache()` only to dedupe calls within one request.
 - Always `await` `params`, `searchParams`, `cookies()` and `headers()` (async in Next 16).
-- Parse `searchParams` with Zod with defaults (`page=1`, `pageSize=20`); never trust raw strings.
+- Parse `searchParams` with Zod with defaults (`page=1`, `pageSize=20`) inside the use case; never trust raw strings.
 
 ```tsx
 // src/app/(dashboard)/users/page.tsx
-import { adminApi } from "@/lib/api/client";
-import { usersListQuery } from "@/features/users/schemas/list-query";
-import { UsersTable } from "@/features/users/components/users-table";
+import { listUsers, UsersTable } from "@/features/users/server";
 
 export default async function UsersPage({
   searchParams,
 }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const query = usersListQuery.parse(await searchParams);
-  const page = await (await adminApi()).users.list(query);
-  return <UsersTable data={page} query={query} />;
+  const page = await listUsers(await searchParams); // use case: Zod-parse query -> gateway
+  return <UsersTable data={page} />;
 }
 ```
 
 ## Mutations
 
-- All mutations are Server Actions in `features/<domain>/api/actions.ts` (`"use server"`).
-- Each action: (1) validate input with the Zod schema on the server, (2) `requireRole([...])` for the roles in the contract, (3) call the adapter, (4) `revalidatePath` or `revalidateTag` for affected routes, (5) return `{ ok, auditId }` or `{ ok: false, code, fieldErrors }`.
+- All mutations are Server Actions in `features/<domain>/presentation/actions/*.ts` (`"use server"`), re-exported from `server.ts`.
+- Each action: (1) validate input with the Zod schema on the server, (2) `requireRole([...])` for the roles in the contract, (3) call the gateway, (4) `revalidatePath` or `revalidateTag` for affected routes, (5) return `{ ok, auditId }` or `{ ok: false, code, fieldErrors }`.
 - The client never calls `fetch` to the Go API directly.
 
 ```ts
-// src/features/users/api/actions.ts
+// src/features/users/presentation/actions/user.actions.ts
 "use server";
 import { revalidatePath } from "next/cache";
-import { adminApi } from "@/lib/api/client";
-import { requireRole } from "@/lib/auth/guard";
-import { suspendUserInput } from "../schemas/user-actions";
-import { toActionError } from "@/lib/api/errors";
+import { adminApi } from "@/shared/lib/api/gateway";
+import { requireRole } from "@/shared/lib/auth/guard";
+import { toActionError } from "@/shared/lib/api/errors";
+import { suspendUserInput } from "../../domain/user-input";
 
 export async function suspendUser(raw: unknown) {
   const input = suspendUserInput.safeParse(raw);
@@ -243,7 +224,7 @@ Definition of green before handing back: `typecheck`, `lint`, `test` and `build`
 
 ## Testing
 
-- **Unit / component (Vitest + Testing Library, jsdom):** every Zod schema in `features/*/schemas/` (valid, invalid, boundary cases such as reason length 4, 5, 500, 501), every StatusBadge enum mapping, DataTable URL-param logic, ReasonDialog submit gating.
+- **Unit / component (Vitest + Testing Library, jsdom):** every Zod schema in `features/*/domain/` and `features/*/presentation/` (valid, invalid, boundary cases such as reason length 4, 5, 500, 501), every StatusBadge enum mapping, DataTable URL-param logic, ReasonDialog submit gating.
 - **Adapter contract tests:** run the same test suite against `mock` and `go` adapters (the go run uses a fake fetch). Both must return the shapes in `types.ts`.
 - **E2E smoke (Playwright, optional):** login (mock mode), open each route once per role, verify nav visibility and one ★ mutation shows a ReasonDialog.
 - Fixtures come from the mock adapter, not hand-written JSON per test.
@@ -288,8 +269,8 @@ Build order (CMS_ASSESSMENT §17, applied to the frontend):
 ## Conventions
 
 - Mirror the spec's Indonesian enum and field names in code as they appear in the contract (camelCase fields, SNAKE_CASE enums). Do not translate them.
-- One domain = one `features/<domain>/` folder. Shared admin shell pieces live in `components/shared/`.
-- Keep UI strings for a feature in one file (`features/<domain>/copy.ts`) so the UI copy language can be decided later (see OPEN).
+- One domain = one `features/<domain>/` folder with the five layers. Shared admin shell/UI pieces go to `shared/` — created only when a second domain needs them.
+- Keep UI strings for a feature in one file (`features/<domain>/presentation/copy.ts`) so the UI copy language can be decided later (see OPEN).
 - Prefer `unknown` plus Zod parsing at every boundary over casts.
 
 ## OPEN
