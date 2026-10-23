@@ -17,7 +17,6 @@ import {
   rowStatus,
   shortCorr,
   threadRootOf,
-  unreadCounts,
 } from "../src/chat/model.mjs"
 
 const NOW = 1_700_000_000_000
@@ -249,19 +248,8 @@ describe("review round 1", () => {
     assert.equal(threadRootOf(hb, idx), disp)
     assert.equal(threadRootOf(pr, idx), pr)
   })
-  test("unread counts: nothing before the first hello; messages after baseline / last-seen per channel", () => {
-    let s = hello(initialInteractionState, [d]) // replay = history
-    const baseline = s.seq
-    assert.equal(unreadCounts(s.entries, null, {}).size, 0)
-    s = live(s, ev({ type: "handback", ts: NOW, eventId: "r-11", agent: "scout", target: "orchestrator", correlationId: "claude:toolu_9", status: "ok" }))
-    s = live(s, ev({ type: "activity", ts: NOW, eventId: "r-12", agent: "scout", text: "grep" })) // not a message
-    let u = unreadCounts(s.entries, baseline, {})
-    assert.equal(u.get("scout"), 1); assert.equal(u.get("orchestrator"), 1)
-    u = unreadCounts(s.entries, baseline, { scout: s.seq })
-    assert.equal(u.get("scout"), undefined); assert.equal(u.get("orchestrator"), 1)
-  })
   test("scout is pinned with the required agents", () => {
-    for (const id of ["orchestrator", "scout", "architect", "coder", "reviewer", "memory-manager"]) assert.ok(PINNED_AGENTS.includes(id), id)
+    for (const id of ["orchestrator", "scout", "architect", "coder", "reviewer"]) assert.ok(PINNED_AGENTS.includes(id), id)
   })
 })
 
@@ -296,5 +284,18 @@ describe("review round 2: no ok/done without evidence", () => {
     const root = s.entries[0]
     assert.equal(replyCount(root, idx), linkedEvents(root, s.entries, idx).length)
     assert.equal(replyCount(root, idx), 4)
+  })
+})
+
+describe("Hermes Agent OS", () => {
+  test("hermes (orchestrator and its OpenCode relay agent) maps to the orchestrator slot", () => {
+    const s = feed([
+      { type: "dispatch", agent: "hermes", target: "scout", source: "hermes", sessionID: "agentos:T-1", taskId: "T-1", correlationId: "agentos:ex_1", ts: NOW - 20, eventId: "h-1", text: "Find auth" },
+      { type: "handback", agent: "scout", target: "hermes", source: "hermes", sessionID: "agentos:T-1", taskId: "T-1", correlationId: "agentos:ex_1", status: "ok", ts: NOW - 10, eventId: "h-2" },
+    ])
+    const sums = agentSummaries(s.entries)
+    assert.ok(sums.has("orchestrator"))
+    assert.ok(!sums.has("hermes"))
+    assert.equal(s.entries[0].ev.taskId, "T-1")
   })
 })

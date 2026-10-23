@@ -21,7 +21,7 @@ Code lives in `seedly_app/lib/features/garden/presentation/widgets/plant_visual/
 
 - Pot face, sensors or mood only (`pot_face.dart`, `models/pot_mood.dart`).
 - Swapping the whole renderer for Rive or `.glb`: use the `potVisual` override on `PotHeroCarousel` instead of editing species builders.
-- Backend or catalogue data changes: spec work, not this skill (see `spec-first`).
+- Backend or catalogue data changes: spec work, not this skill (see `spec-first`). CMS equivalent: species catalogue screens are under `cms-nextjs-architecture`; there is no CMS equivalent of seed visuals.
 
 ## Pipeline (name → pixels)
 

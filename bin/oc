@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
-# Run OpenCode agents/commands from any tool (Cline, Claude Code, plain shell).
-# The opencode office-bridge plugin streams the run to the visualizer, so the real agents light up.
+# Submit work to Hermes, the orchestrator of this workspace, from any tool (OpenCode relay agent,
+# Claude Code, Cline, plain shell). Hermes plans the route and runs the OpenCode specialist agents.
 #
-#   oc agent <name> "<prompt>"     e.g. oc agent scout "find where login tokens are stored"
-#   oc cmd <command> "<args>"      e.g. oc cmd feature "add pull-to-refresh on garden list"
+#   oc <route> "<request>"        e.g. oc feature "add pull-to-refresh on garden list"   (routes: oc routes)
+#   oc ask "<request>"            no route: Hermes picks the smallest one
+#   oc agent <name> "<task>"      one step with one specialist, e.g. oc agent scout "where are tokens stored?"
+#   oc cmd <route> "<request>"    old syntax, same as `oc <route>`
+#   ... --async                   return a task id at once, then: oc wait <task_id> [--max 240] (live progress, then
+#                                 the answer) | oc watch <task_id> (progress stream until it ends) | oc status <task_id>
+#   oc proof <task_id> | --system  prove from evidence that Hermes orchestrated it (exit 1 if not)
+# The request can also come on stdin (heredoc), which avoids shell quoting of user text.
+# Project: the registered workspace containing the working directory, or AGENT_OS_PROJECT=<id> (which must
+# contain the working directory). There is no default project: anything else is refused.
 set -euo pipefail
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-kind="${1:-}"; name="${2:-}"; shift 2 2>/dev/null || true
-[ -n "$kind" ] && [ -n "$name" ] || { sed -n '2,7p' "$0"; exit 2; }
-[[ $name =~ ^[a-z][a-z0-9-]*$ ]] || { echo "invalid name: $name" >&2; exit 2; }
-case "$kind" in
-  # Subagents cannot be `run --agent` targets (opencode falls back to the default agent), so route via the orchestrator.
-  agent) exec opencode run --dir "$ROOT" --agent orchestrator \
-           "Delegate exactly this task to the \`$name\` subagent using the task tool (subagent_type \"$name\"), do nothing else yourself, and return its result: $*" ;;
-  cmd)   exec opencode run --dir "$ROOT" --command "$name" -- "$@" ;;
-  *)     echo "unknown kind: $kind (use agent|cmd)" >&2; exit 2 ;;
-esac
+AGENT_OS_HOME="${AGENT_OS_HOME:-$HOME/ferry-dev/hermes-agent-os}"
+[ -f "$AGENT_OS_HOME/bin/hermes-task.mjs" ] || { echo "hermes-agent-os not found at $AGENT_OS_HOME (set AGENT_OS_HOME)" >&2; exit 2; }
+[ $# -gt 0 ] || { sed -n '2,14p' "$0"; exit 2; }
+[ "$1" = proof ] && { shift; exec node "$AGENT_OS_HOME/bin/agentos.mjs" proof "$@"; }
+[ -n "${AGENT_OS_PROJECT:-}" ] && exec node "$AGENT_OS_HOME/bin/hermes-task.mjs" --project "$AGENT_OS_PROJECT" "$@"
+exec node "$AGENT_OS_HOME/bin/hermes-task.mjs" "$@"

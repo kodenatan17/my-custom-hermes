@@ -38,8 +38,9 @@ export type Agent = {
 
 export const ORCHESTRATOR_ID = "orchestrator"
 
-// Primary agents that all map to the standing orchestrator character.
-const ORCHESTRATOR_ALIASES = new Set(["orchestrator", "orchestrator-agent", "general", "build", "plan"])
+// Primary agents that all map to the standing orchestrator character. Hermes (the Agent OS orchestrator)
+// and its OpenCode relay agent both appear as "hermes".
+const ORCHESTRATOR_ALIASES = new Set(["orchestrator", "orchestrator-agent", "general", "build", "plan", "hermes"])
 
 // Category per agent (drives desk color/grouping). Unknown agents fall back to "other".
 const CATEGORY_BY_AGENT: Record<string, Category> = {
@@ -50,7 +51,6 @@ const CATEGORY_BY_AGENT: Record<string, Category> = {
   reviewer: "quality",
   documenter: "documentation",
   devops: "infrastructure",
-  "memory-manager": "memory",
 }
 
 function frontmatter(source: string): Record<string, string> {
@@ -98,7 +98,8 @@ export const SUBAGENTS: Agent[] = definitions
   }))
   .sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category))
 
-const orchestratorFile = definitions.find((d) => d.id === ORCHESTRATOR_ID)
+// Persona of the standing orchestrator: the Hermes relay agent file (agents/hermes.md).
+const orchestratorFile = definitions.find((d) => d.id === "hermes") ?? definitions.find((d) => d.id === ORCHESTRATOR_ID)
 
 export const ORCHESTRATOR: Agent = {
   id: ORCHESTRATOR_ID,

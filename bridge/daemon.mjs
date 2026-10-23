@@ -116,6 +116,11 @@ const sanitize = (e) => ({
   childSessionID: opt(e.childSessionID),
   status: opt(e.status),
   durationMs: duration(e.durationMs),
+  // Hermes Agent OS correlation: one Hermes task -> executions across hermes and opencode events.
+  taskId: opt(e.taskId),
+  parentTaskId: opt(e.parentTaskId),
+  executionId: opt(e.executionId),
+  projectId: opt(e.projectId),
 })
 
 const coordinator = createCoordinator({
@@ -210,6 +215,8 @@ const server = createServer((req, res) => {
 })
 
 server.on("upgrade", (req, socket) => {
+  // The upgraded socket has no error listener of its own: a client reset (ECONNRESET) must not kill the daemon.
+  socket.on("error", () => clients.delete(socket))
   if (!hostOk(req) || !originOk(req)) {
     socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
     return
@@ -224,7 +231,6 @@ server.on("upgrade", (req, socket) => {
   send(socket, JSON.stringify({ type: "hello", replay }))
   const drop = () => clients.delete(socket)
   socket.on("close", drop)
-  socket.on("error", drop)
   // Client frames are only pings/close: answer close, ignore the rest.
   socket.on("data", (buf) => {
     const op = buf[0] & 0x0f

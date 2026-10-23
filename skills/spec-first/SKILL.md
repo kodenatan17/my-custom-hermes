@@ -60,7 +60,19 @@ None — this is the foundational skill; every other skill assumes the relevant 
 | profiling / auth / login / session | features/profiling-user-feature.md, features/authentication-feature.md |
 | assessment / guided camera / photo validation | features/assessment-feature.md, domain/apps/GUIDED_CAMERA.md, domain/be/AI_IMAGE_VALIDATION.md |
 | social / sharing | domain/apps/SOCIAL.md |
-| cms / admin | features/cms/CMS_ASSESSMENT.md (index → matching sub-file) |
+| cms / admin (index) | features/cms/CMS_ASSESSMENT.md; CMS build skills: cms-nextjs-architecture (routes, build order), cms-ui-slicing, cms-api-contract, cms-security-boundaries |
+| cms user / support / suspend / xp correction / gdpr | features/cms/master_data_user.md (contract §4) |
+| cms device / revoke / release / factory batch | features/cms/master_data_device.md (contract §5) |
+| cms species / care profile / seed kit | features/cms/master_data_seed_product.md (contract §2–3) |
+| cms growth template / journey stage | features/cms/master_data_growth_journey.md (contract §6) |
+| cms mission / challenge / quest (definitions) | features/cms/mission_management.md (contract §7–9) |
+| cms achievement / mastery tier / level | features/cms/achievement_management.md (contract §10) |
+| cms learning question / mcq | features/cms/learning_content_management.md (contract §11) |
+| cms ai usage / quota / config | features/cms/ai_management.md (contract §14) |
+| cms iot fleet / offline device / abnormal reading | features/cms/iot_monitoring.md (contract §15) |
+| cms analytics / metrics dashboard | features/cms/analytics.md (contract §16) |
+| cms admin user / role / rbac / admin login | features/cms/admin_access_control.md (contract §1.2, §12) |
+| cms audit / audit log | features/cms/audit_log.md (contract §13) |
 | api / contract | contracts/api_contracts_backend.md (app+device) or contracts/api_contracts_cms.md (admin) |
 | database / schema / migration | domain/be/DATABASE_DESIGN.md, infrastructure/infra-backend/DATABASE_SCHEMA.sql |
 | architecture / module boundary | architecture/{be,apps,sensor}/ARCHITECTURE_DECISIONS.md |

@@ -7,13 +7,13 @@ export const MAX_ENTRIES = 2000
 /** Timestamps further than this into the future (vs. local receive time) are treated as invalid. */
 export const FUTURE_SKEW_MS = 5 * 60_000
 // scout is pinned too: the bridge relabels unknown subagent types to it, so it is usually the busiest channel.
-export const PINNED_AGENTS = ["orchestrator", "scout", "architect", "coder", "reviewer", "memory-manager"]
+export const PINNED_AGENTS = ["orchestrator", "scout", "architect", "coder", "reviewer"]
 export const ALL_KINDS = ["prompt", "dispatch", "handback", "error", "activity", "lifecycle", "lock", "other"]
 export const DEFAULT_KINDS = ["prompt", "dispatch", "handback", "error"]
 export const USER = "user"
 
 // Same aliases as agents.ts normalizeAgent (kept here so this module stays importable from Node).
-const ORCHESTRATOR_ALIASES = new Set(["orchestrator", "orchestrator-agent", "general", "build", "plan"])
+const ORCHESTRATOR_ALIASES = new Set(["orchestrator", "orchestrator-agent", "general", "build", "plan", "hermes"])
 
 /**
  * @typedef {{
@@ -123,11 +123,12 @@ function ingest(state, events, now) {
       continue
     }
     if (isDemoEvent(raw)) continue
-    const key = eventKey(raw)
+    const masked = /** @type {ChatEvent} */ (maskDeep(raw)) // fingerprint keys must never embed unmasked text
+    const key = eventKey(masked)
     if (state.keys.has(key) || keys?.has(key)) continue
     keys = keys ?? new Set(state.keys) // never mutate the previous state (StrictMode double-invokes reducers)
     keys.add(key)
-    added.push(makeEntry(/** @type {ChatEvent} */ (maskDeep(raw)), key, seq++, now))
+    added.push(makeEntry(masked, key, seq++, now))
   }
   if (!added.length || !keys) return parseErrors === state.parseErrors ? state : { ...state, parseErrors }
   let entries = state.entries.concat(added).sort(compareEntries)
@@ -224,25 +225,6 @@ export function replyCount(entry, index) {
 export function threadRootOf(entry, index) {
   const c = entry.ev.correlationId
   return (typeof c === "string" && c && index.byCorr.get(c)?.dispatch) || entry
-}
-
-/**
- * Unread message counts per agent channel: prompt/dispatch/handback/error events involving the agent that arrived
- * at or after max(baseline, seen[agent]). Before the first hello (baseline null) nothing is unread.
- * @param {Entry[]} entries @param {number | null} baseline @param {Record<string, number>} seen @returns {Map<string, number>}
- */
-export function unreadCounts(entries, baseline, seen) {
-  /** @type {Map<string, number>} */
-  const out = new Map()
-  if (baseline === null) return out
-  for (const e of entries) {
-    if (e.kind !== "prompt" && e.kind !== "dispatch" && e.kind !== "handback" && e.kind !== "error") continue
-    for (const id of new Set([e.sender, e.receiver])) {
-      if (!id || id === USER || id === "unknown") continue
-      if (e.seq >= Math.max(baseline, seen[id] ?? 0)) out.set(id, (out.get(id) ?? 0) + 1)
-    }
-  }
-  return out
 }
 
 /** Status shown on a timeline row ("" = none). @param {Entry} entry @param {EntryIndex} index @returns {string} */
@@ -441,4 +423,192 @@ export function summaryOf(ev) {
   if (ev.type === "idle") return ev.text || "idle"
   if (ev.type === "busy") return ev.text || "busy"
   return ev.text || ev.prompt || ""
+}
+
+// ---- rooms (WhatsApp-style: one room per agent pair, plus per-agent "own activity" rooms and "All") ----
+
+export const ALL_ROOM = "all"
+/** Kinds that are chat messages (bubbles) rather than system noise. */
+const MESSAGE_KINDS = new Set(["prompt", "dispatch", "handback", "error"])
+
+/** @param {unknown} id */
+const isAgentId = (id) => typeof id === "string" && id !== "" && id !== USER && id !== "unknown"
+
+/** Room id of an unordered agent pair. @param {string} a @param {string} b */
+export const pairRoomId = (a, b) => `pair:${[a, b].sort().join("|")}`
+/** @param {string} agent */
+export const agentRoomId = (agent) => `agent:${agent}`
+
+/** Sorted [a, b] when the entry is a dispatch/handback between two distinct known agents (either direction). @param {Entry} e @returns {string[] | null} */
+export function pairOf(e) {
+  if ((e.kind === "dispatch" || e.kind === "handback") && isAgentId(e.sender) && isAgentId(e.receiver) && e.sender !== e.receiver) {
+    return [e.sender, /** @type {string} */ (e.receiver)].sort()
+  }
+  return null
+}
+
+/** Agent whose own-activity room an entry belongs to (non-pair entries only). @param {Entry} e @returns {string | undefined} */
+export function ownerOf(e) {
+  if (pairOf(e)) return undefined
+  const self = e.kind === "prompt" ? e.receiver : e.sender
+  return isAgentId(self) ? /** @type {string} */ (self) : undefined
+}
+
+/** Lifecycle / activity / lock / tool-error entries render as centred system pills, not bubbles. @param {Entry} e */
+export const isSystemEntry = (e) => !MESSAGE_KINDS.has(e.kind) || isToolError(e.ev)
+
+/**
+ * @typedef {{ id: string, type: "pair" | "agent", name: string, members: string[], initiator?: string, counterpart: string,
+ *   count: number, last: Entry, lastMsg: Entry, unread: number }} Room
+ */
+
+/**
+ * Derive rooms from events. Pair rooms hold dispatch/handback between two agents; everything else lives in the
+ * own-activity room of the agent it concerns. Sorted by last message (newest first), matching the time shown in the list. "All" is not included.
+ * @param {Entry[]} entries @param {number | null} [baseline] @param {Record<string, number>} [seen] @returns {Room[]}
+ */
+export function buildRooms(entries, baseline = null, seen = {}) {
+  /** @type {Map<string, Room & { dispatchInit?: string, handbackInit?: string }>} */
+  const map = new Map()
+  for (const e of [...entries].sort(compareEntries)) {
+    const pair = pairOf(e)
+    const owner = pair ? undefined : ownerOf(e)
+    if (!pair && !owner) continue
+    const id = pair ? pairRoomId(pair[0], pair[1]) : agentRoomId(/** @type {string} */ (owner))
+    let r = map.get(id)
+    if (!r) {
+      r = { id, type: pair ? "pair" : "agent", name: "", members: pair ?? [/** @type {string} */ (owner)], counterpart: "", count: 0, last: e, lastMsg: e, unread: 0 }
+      map.set(id, r)
+    }
+    r.count++
+    r.last = e
+    if (MESSAGE_KINDS.has(e.kind) && !isToolError(e.ev)) r.lastMsg = e
+    if (pair && e.kind === "dispatch" && !r.dispatchInit) r.dispatchInit = e.sender
+    if (pair && e.kind === "handback" && !r.handbackInit) r.handbackInit = e.receiver
+    if (baseline !== null && MESSAGE_KINDS.has(e.kind) && e.seq >= Math.max(baseline, seen[id] ?? 0)) r.unread++
+  }
+  const rooms = [...map.values()].map((r) => {
+    const { dispatchInit, handbackInit, ...room } = r
+    if (room.type === "pair") {
+      room.initiator = dispatchInit ?? handbackInit ?? room.members[0]
+      room.counterpart = room.members.find((m) => m !== room.initiator) ?? room.members[1]
+      room.name = `${room.initiator} ↔ ${room.counterpart}`
+    } else {
+      room.counterpart = room.members[0]
+      room.name = `# ${room.members[0]}`
+    }
+    return /** @type {Room} */ (room)
+  })
+  return rooms.sort((a, b) => compareEntries(b.lastMsg, a.lastMsg))
+}
+
+/**
+ * Entries shown in a room (before user filters). "All" = everything. A pair room = its messages plus the
+ * non-prompt own-activity entries (lifecycle, lock, errors) of either member.
+ * @param {Room | undefined} room @param {Entry[]} entries @returns {Entry[]}
+ */
+export function roomEntries(room, entries) {
+  if (!room) return entries
+  if (room.type === "agent") return entries.filter((e) => ownerOf(e) === room.members[0])
+  return entries.filter((e) => {
+    const p = pairOf(e)
+    if (p) return pairRoomId(p[0], p[1]) === room.id
+    return e.kind !== "prompt" && room.members.includes(/** @type {string} */ (ownerOf(e)))
+  })
+}
+
+/** Bubble side: the room initiator (or own agent) is "out" (right), everyone else "in" (left). @param {Entry} e @param {Room | undefined} room @returns {"in" | "out"} */
+export function sideOf(e, room) {
+  if (!room) return "in"
+  if (room.type === "pair") return e.sender === room.initiator ? "out" : "in"
+  return e.sender === room.members[0] ? "out" : "in"
+}
+
+/** Dispatch a handback answers (for the "reply to" quote), or undefined. @param {Entry} e @param {EntryIndex} index */
+export function replyQuote(e, index) {
+  if (e.ev.type !== "handback") return undefined
+  const root = threadRootOf(e, index)
+  return root !== e && root.ev.type === "dispatch" ? root : undefined
+}
+
+/** Local calendar day key YYYY-MM-DD. @param {number} ts */
+export function dayKey(ts) {
+  const d = new Date(ts)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+/** "Today" / "Yesterday" / "12 Mar 2026". @param {number} ts @param {number} now */
+export function dayLabel(ts, now) {
+  const k = dayKey(ts)
+  if (k === dayKey(now)) return "Today"
+  const y = new Date(now)
+  y.setDate(y.getDate() - 1)
+  if (k === dayKey(y.getTime())) return "Yesterday"
+  return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+}
+
+/** Consecutive entries grouped by local day (invalid timestamps use their arrival time). @param {Entry[]} entries @returns {{ key: string, ts: number, entries: Entry[] }[]} */
+export function groupByDay(entries) {
+  /** @type {{ key: string, ts: number, entries: Entry[] }[]} */
+  const out = []
+  for (const e of entries) {
+    const key = dayKey(e.sortTs)
+    const g = out[out.length - 1]
+    if (g && g.key === key) g.entries.push(e)
+    else out.push({ key, ts: e.sortTs, entries: [e] })
+  }
+  return out
+}
+
+/** Avatar initials: "coder" -> "CO", "memory-manager" -> "MM". @param {string} id */
+export function initialsOf(id) {
+  const words = id.split(/[-_\s]+/).filter(Boolean)
+  if (words.length === 0) return "?"
+  return (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[1][0]).toUpperCase()
+}
+
+/** Room id to show: the requested one if it still exists, else "All". @param {Room[]} rooms @param {string} id */
+export const resolveRoomId = (rooms, id) => (id !== ALL_ROOM && rooms.some((r) => r.id === id) ? id : ALL_ROOM)
+
+// ---- agent-first navigation: agents -> their conversation partners -> pair room ----
+
+/** Listed first in the agent column. normalizeId already maps hermes / general / build / plan to "orchestrator". */
+const ORCHESTRATORS = ["orchestrator"]
+
+/** @typedef {{ id: string, unread: number, last: Entry, partners: number }} AgentEntry */
+
+/**
+ * One entry per agent that takes part in at least one pair room (agents never exchanging messages are not listed).
+ * Orchestrators first, then by latest message (newest first). @param {Room[]} rooms @returns {AgentEntry[]}
+ */
+export function agentEntries(rooms) {
+  /** @type {Map<string, AgentEntry>} */
+  const out = new Map()
+  for (const r of rooms) {
+    if (r.type !== "pair") continue
+    for (const id of r.members) {
+      const a = out.get(id)
+      if (!a) out.set(id, { id, unread: r.unread, last: r.lastMsg, partners: 1 })
+      else {
+        a.unread += r.unread
+        a.partners++
+        if (compareEntries(r.lastMsg, a.last) > 0) a.last = r.lastMsg
+      }
+    }
+  }
+  const rank = (/** @type {string} */ id) => (ORCHESTRATORS.includes(id) ? ORCHESTRATORS.indexOf(id) : ORCHESTRATORS.length)
+  return [...out.values()].sort((a, b) => rank(a.id) - rank(b.id) || compareEntries(b.last, a.last))
+}
+
+/** @typedef {{ partner: string, room: Room }} PartnerEntry */
+
+/**
+ * Conversation partners of `agent`: one per pair room it belongs to, newest message first.
+ * @param {Room[]} rooms @param {string} agent @returns {PartnerEntry[]}
+ */
+export function partnersOf(rooms, agent) {
+  return rooms
+    .filter((r) => r.type === "pair" && r.members.includes(agent))
+    .map((room) => ({ partner: room.members.find((m) => m !== agent) ?? room.members[0], room }))
+    .sort((a, b) => compareEntries(b.room.lastMsg, a.room.lastMsg))
 }

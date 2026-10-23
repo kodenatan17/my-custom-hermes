@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { maskDeep } from "../../../bridge/mask.mjs"
 import { badgeOf, durationOf, fmtDuration, rowStatus, summaryOf, type Entry, type EntryIndex } from "./model.mjs"
 import { clock } from "./Timeline"
@@ -12,6 +13,8 @@ type Props = {
   index: EntryIndex
   onSelect: (key: string) => void
   onIsolate: (correlationId: string) => void
+  /** Closes the panel (overlay on narrow screens, deselect on wide ones). */
+  onClose: () => void
 }
 
 /** One message of the thread: header, then the full prompt / result / error body. */
@@ -46,7 +49,17 @@ function Message({ e, index, active, isRoot, onSelect }: { e: Entry; index: Entr
 }
 
 /** Right column (thread): root message, replies in time order, then collapsible metadata + masked payload. */
-export function DetailPanel({ selected, root, replies, index, onSelect, onIsolate }: Props) {
+export function DetailPanel({ selected, root, replies, index, onSelect, onIsolate, onClose }: Props) {
+  const closeBtn = useRef<HTMLButtonElement>(null)
+  const isOpen = !!selected
+  const overlay = window.matchMedia("(max-width: 1099px)").matches
+  // As an overlay (narrow screens) move focus into the panel on open and give it back to the opener on close.
+  useEffect(() => {
+    if (!isOpen || !window.matchMedia("(max-width: 1099px)").matches) return
+    const opener = document.activeElement as HTMLElement | null
+    closeBtn.current?.focus()
+    return () => opener?.focus?.()
+  }, [isOpen])
   if (!selected || !root) {
     return (
       <aside className="card chat-col chat-detail">
@@ -71,8 +84,14 @@ export function DetailPanel({ selected, root, replies, index, onSelect, onIsolat
   ]
 
   return (
-    <aside className="card chat-col chat-detail">
-      <div className="chat-section muted">Thread</div>
+    <aside className="card chat-col chat-detail open" role="dialog" aria-modal={overlay} aria-label="Message thread">
+      <div className="chat-detail-bar">
+        <button ref={closeBtn} className="chat-close" onClick={onClose} aria-label="Close thread">
+          <span className="chat-close-back">←</span>
+          <span className="chat-close-x">✕</span>
+        </button>
+        <b>Thread</b>
+      </div>
       <Message e={root} index={index} isRoot active={root === selected} onSelect={() => onSelect(root.key)} />
       <div className="chat-section muted">
         {replies.length} {replies.length === 1 ? "reply" : "replies"}

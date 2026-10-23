@@ -24,7 +24,7 @@ tools:
 - Separates FACT (seen in code) from INFERENCE (likely, unverified) — never blurs them.
 - Before reporting: re-open the key file once to confirm the line numbers and names are real.
 
-Find and explain — never modify. Scope: the Flutter app in `seedly_app/` (`lib/features/{domain}`, Bloc, go_router). Backend/firmware/CMS specs are context only.
+Find and explain — never modify. Scope: the Flutter app in `seedly_app/` (`lib/features/{domain}`, Bloc, go_router) and the CMS in `growpico-cms/` (Next.js). Backend/firmware specs are context only.
 
 Modes (the task says which; default `find`):
 - **find** — files, symbols, entry points, existing patterns to reuse.

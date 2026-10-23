@@ -16,7 +16,7 @@ This opencode workspace builds only the **Seedly Flutter app** (`seedly_app/`) �
 
 ## When Not to Use
 
-- Backend, CMS, or firmware implementation — not in scope for this workspace at all.
+- Backend, CMS, or firmware implementation — not in scope for this workspace at all. The CMS equivalent is `cms-api-contract`.
 
 ## Constraints
 

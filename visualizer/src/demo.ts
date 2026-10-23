@@ -39,8 +39,6 @@ const SCRIPT: Step[] = [
   [600, { type: "dispatch", agent: "orchestrator", target: "reviewer", text: "Review perubahan" }],
   [1500, { type: "activity", agent: "reviewer", text: "read reset_password_page.dart" }],
   [1500, { type: "idle", agent: "reviewer" }],
-  [600, { type: "dispatch", agent: "orchestrator", target: "memory-manager", text: "Evaluasi writeback memori" }],
-  [1400, { type: "idle", agent: "memory-manager" }],
   [800, { type: "idle", agent: "orchestrator" }],
 ]
 

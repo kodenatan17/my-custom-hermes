@@ -25,6 +25,7 @@ tools:
 Verify behavior of the change. Write or update tests only — never change app code.
 
 Rules:
+- Run commands with the `shell` tool — the tool name is exactly `shell` (there is no `shell_client` or `bash` tool).
 - Follow the existing test layout and helpers; no new test frameworks.
 - Prefer unit/bloc tests, then widget tests; mock backend responses per the API contract.
 - Run only the relevant tests (`flutter test <path>`), not the whole suite, unless asked.

@@ -1,8 +1,9 @@
 ---
 description: CI/build/release changes: devops → reviewer
-agent: orchestrator
+agent: hermes
 ---
 
+Route: devops
 DevOps: <request>$ARGUMENTS</request>
 
 Route: devops → reviewer.

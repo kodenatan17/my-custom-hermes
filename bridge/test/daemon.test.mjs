@@ -192,6 +192,21 @@ describe("Agent Interaction Viewer: event envelope", () => {
     assert.equal(c.durationMs, undefined); assert.equal(d.durationMs, undefined)
   })
 
+  test("Agent OS ids (taskId/parentTaskId/executionId/projectId) pass through, clipped to 200; non-strings dropped", async () => {
+    const ws = await wsCapture()
+    try {
+      await post("/event", [
+        { type: "dispatch", agent: "hermes", target: "scout", source: "hermes", sessionID: "v9", taskId: "T-20261020-1900-x-ab12", parentTaskId: "T-0", executionId: "ex_mvgm6lw7_144b7a00", projectId: "growpico" },
+        { type: "handback", agent: "scout", target: "hermes", sessionID: "v9", taskId: "t".repeat(300), executionId: 42 },
+      ])
+      await settle()
+    } finally { ws.close() }
+    const [a, b] = ws.events.filter((e) => e.sessionID === "v9")
+    assert.deepEqual([a.taskId, a.parentTaskId, a.executionId, a.projectId, a.source], ["T-20261020-1900-x-ab12", "T-0", "ex_mvgm6lw7_144b7a00", "growpico", "hermes"])
+    assert.equal(b.taskId.length, 200)
+    assert.equal(b.executionId, undefined)
+  })
+
   test("secrets are masked in text/prompt/result/error", async () => {
     const ws = await wsCapture()
     try {
@@ -228,4 +243,19 @@ describe("Agent Interaction Viewer: event envelope", () => {
     assert.ok(Buffer.byteLength(JSON.stringify(replay)) <= 600_000 + replay.length)
     assert.ok(seqOf(replay[0].eventId) > 0, "first replayed seq > 0 => older history dropped")
   })
+})
+
+test("a WebSocket client that resets its connection does not kill the daemon", async () => {
+  const { connect } = await import("node:net")
+  const upgrade = (origin) =>
+    new Promise((resolve) => {
+      const s = connect(PORT, "127.0.0.1", () => {
+        s.write(`GET / HTTP/1.1\r\nHost: 127.0.0.1:${PORT}\r\n${origin ? `Origin: ${origin}\r\n` : ""}Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`)
+        setTimeout(() => { s.resetAndDestroy(); resolve() }, 20)
+      })
+      s.on("error", resolve)
+    })
+  for (let i = 0; i < 5; i++) await Promise.all([upgrade(), upgrade("http://evil.com")])
+  await new Promise((r) => setTimeout(r, 100))
+  assert.equal((await http("GET", "/health")).json?.ok, true)
 })

@@ -5,11 +5,12 @@ import { initialState, reducer, type OfficeEvent } from "./office"
 
 export type Connection = "connecting" | "live" | "offline" | "demo"
 
-/** Chat channel read marks: events with seq >= max(baseline, seen[agent]) are unread. Lives here to survive view toggles. */
+/** Chat room read marks: events with seq >= max(baseline, seen[roomId]) are unread (keyed by room id). Lives here to survive view toggles. */
 export type UnreadState = { baseline: number | null; seen: Record<string, number> }
 
 const params = new URLSearchParams(location.search)
-const BRIDGE_URL = params.get("bridge") ?? "ws://localhost:4777"
+// 127.0.0.1, not "localhost": the daemon binds IPv4 only, and browsers may resolve localhost to ::1 first.
+const BRIDGE_URL = params.get("bridge") ?? "ws://127.0.0.1:4777"
 
 /** Streams events from the opencode office-bridge plugin, or a scripted demo. */
 export function useOfficeStream(demo: boolean) {

@@ -18,7 +18,7 @@ import {
   replyCount,
   rowStatus,
   summaryOf,
-  unreadCounts,
+  buildRooms,
 } from "../src/chat/model.mjs"
 
 const NOW = 1_700_000_000_000
@@ -132,7 +132,6 @@ describe("timeline with 2000+ events", () => {
     const f = filterEntries(s.entries, { kinds: DEFAULT_KINDS, search: "task", status: "ok" }, idx, NOW)
     let replies = 0
     for (const e of s.entries) replies += replyCount(e, idx)
-    unreadCounts(s.entries, 0, {})
     const took = performance.now() - t0
     assert.ok(sums.has("coder") && sums.has("orchestrator"))
     assert.ok(f.length > 0 && f.every((e) => e.ev.type === "dispatch"))
@@ -158,7 +157,7 @@ describe("incomplete events", () => {
     assert.equal(s.entries.length, 1)
     assert.equal(s.entries[0].sender, "unknown")
     assert.equal(agentSummaries(s.entries).has("unknown"), false)
-    assert.equal(unreadCounts(s.entries, 0, {}).size, 0)
+    assert.equal(buildRooms(s.entries, 0).length, 0)
   })
   test("missing ts => tsValid false, ordered by arrival (recvAt), excluded from time filters", () => {
     let s = live(initialInteractionState, ev({ type: "activity", eventId: "i-2", text: "no ts" }), NOW)

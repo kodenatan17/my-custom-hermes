@@ -1,51 +1,53 @@
 # opencode Multi-Agent Workspace
 
-This directory contains the project-local opencode setup for the **Seedly Flutter app** (`seedly_app/`). Seedly's broader system also includes a Go backend, ESP32 firmware, and a Next.js admin CMS, but this workspace only builds the Flutter client — it reads the other systems' specs for context (what APIs the app consumes) and never implements them. It defines 9 agents (1 orchestrator + 8 subagents), 5 domain skills, 17 slash commands, 9Router model routing, and an event/lock bridge with a visualizer (Workflow View + Agent Chat View). The same roster is exposed to Claude Code and Cline (see [Multi-tool setup](#multi-tool-setup-opencode--cline--claude-code)).
+This directory contains the project-local opencode setup for the **Seedly Flutter app** (`seedly_app/`). Seedly's broader system also includes a Go backend, ESP32 firmware, and a Next.js admin CMS, but this workspace only builds the Flutter client — it reads the other systems' specs for context (what APIs the app consumes) and never implements them.
+
+**Orchestration is owned by Hermes** (Hermes Agent OS, `~/ferry-dev/hermes-agent-os`, Hermes profile `hermes-ferry`). Hermes plans every task, dispatches the specialist agents defined here through its OpenCode adapter (`opencode run --agent <specialist>`, one step at a time), runs the review loop, keeps the Knowledge Graph and writes the final answer. This directory provides the 7 specialist agents, the `hermes` front-door agent, 17 route templates (`commands/`), 5 domain skills, 9Router model routing for the agents, and the event/lock bridge with the visualizer (Workflow View + Agent Chat View). Cline submits to Hermes too; Claude Code is standalone (codes directly) and is only observed by the visualizer (see [Multi-tool setup](#multi-tool-setup-opencode--cline--claude-code)). End-to-end guide: `~/ferry-dev/hermes-agent-os/docs/E2E_GUIDE.md`.
 
 ## Directory Layout
 
 ```text
 .opencode/
-├── opencode.json              # default agent, disabled built-ins, global tool switches
+├── opencode.json              # default agent (hermes), disabled built-ins, global tool switches
 ├── coordination.json          # write-lock config (pathRules, wait budgets, onConflict, liveness)
 ├── tsconfig.json              # typechecks plugins/**/*.ts and bridge/**/*.d.mts only
 ├── agents/                    # one .md per agent (file name = agent name; keep it flat)
-├── commands/                  # one .md per slash command, each carrying only its own route
-├── skills/                    # domain skills, loaded on demand
-├── bin/oc                     # runs the real roster from any shell (used by Cline)
+├── commands/                  # one .md per route template; Hermes reads them (also OpenCode slash commands)
+├── hermes/brief.md            # project brief Hermes reads before planning (scope, roster, rules)
+├── skills/                    # domain skills, loaded on demand by the specialist agents
+├── bin/oc                     # submits work to Hermes from any shell / tool (OpenCode, Cline)
 ├── bridge/                    # tool-agnostic event/lock bridge (zero-dependency Node ESM)
 │   ├── daemon.mjs             # owns ws://localhost:4777 + HTTP endpoints
 │   ├── emit.mjs (+ .d.mts)    # client: POST an event (auto-starts the daemon), claim/release/supersede
 │   ├── hook.mjs               # Cline / Claude Code hook payloads -> events + lock enforcement
+│   ├── hook.sh                # shared launcher: resolves node (VS Code PATH has none) then execs hook.mjs
 │   ├── mask.mjs (+ .d.mts)    # secret masking shared by producers, daemon and UI
 │   ├── coordinator.mjs        # per-feature write locks (liveness, queue, breaker)
-│   ├── sync.mjs               # generates the Claude Code / Cline copies of agents, commands, skills
+│   ├── sync.mjs               # generates the Cline workflows (submit to Hermes) + Claude Code agents/commands/skills
 │   ├── demo-locks.mjs         # lock contention demo
 │   ├── test/                  # node:test suites for the bridge
 │   └── hook.log               # JSONL decision log (git-ignored)
 ├── plugins/
-│   ├── memory-recall.ts       # injects relevant Hermes memory into prompts (no tool calls)
-│   ├── lib/memory-score.ts    # keyword scorer used by memory-recall
-│   └── office-bridge.ts       # OpenCode -> bridge (events + write locks)
+│   └── office-bridge.ts       # OpenCode -> bridge (events + write locks), tags events with the Hermes task id
 ├── visualizer/                # Vite + React app: Workflow View (3D office) and Agent Chat View
-│   ├── src/chat/              # Agent Chat View (model.mjs store + ChatView/AgentList/Timeline/DetailPanel)
+│   ├── src/chat/              # Agent Chat View (model.mjs store + ChatView/RoomList/Timeline/DetailPanel)
 │   └── test/                  # node:test suites for the chat store and the workflow reducer
 ├── archive/agents-v1/         # previous 19-agent setup, kept for reference (not loaded)
 ├── package.json
 └── package-lock.json
 ```
 
-Outside this directory, the same setup is wired into the other tools: `../AGENTS.md` and `../CLAUDE.md` (instructions), `../.claude/` (generated agents/commands/orchestrator, plus a hand-written `settings.json`), `../.clinerules/` (Cline hooks and generated workflows, plus `no-polling-loops.md`).
+Outside this directory, the same setup is wired into the other tools: `../AGENTS.md` and `../CLAUDE.md` (instructions), `../.claude/` (hand-written `settings.json` with the visualizer hooks, generated `agents/` + `commands/`, the `skills` symlink; Claude Code does not use Hermes or 9Router), `../.clinerules/` (Cline hooks and generated workflows, plus `no-polling-loops.md`).
 
 > Agent files must sit directly in `agents/`. opencode names nested files by path (`subagents/research/scout`), which breaks `agent:` references in commands.
 
 ## Agent Model
 
-One orchestrator plus seven focused subagents and the memory manager. Every definition (model, tools, prompt) lives in its `.md` frontmatter only, so there is a single source of truth.
+Hermes is the orchestrator (outside OpenCode). Here: seven specialist subagents that Hermes dispatches one step at a time, plus `hermes`, the OpenCode front door. Every definition (model, tools, prompt) lives in its `.md` frontmatter only.
 
 | Agent | Name | Role | Model |
 | --- | --- | --- | --- |
-| `orchestrator` (primary, default) | Risko | Routes commands, keeps handoffs ≤ 30 lines, runs the review loop | `ninerouter/solo-orchestrator` |
+| `hermes` (primary, default) | Hermes | Front door: submits every message / slash command to Hermes via `bin/oc` and relays the answer. Never dispatched by Hermes. | `ninerouter/researcher-fast` |
 | `scout` | Pingot | Read-only: find files/patterns, analyze flow and impact, diagnose root causes, external docs | `ninerouter/researcher-deep` |
 | `architect` | Bima | Read-only: design, implementation steps, spec/business-rule validation | `ninerouter/planning-architect` |
 | `coder` | Zaki | Implement / fix / refactor / performance changes in `seedly_app/` | `ninerouter/implementation-high` |
@@ -53,17 +55,20 @@ One orchestrator plus seven focused subagents and the memory manager. Every defi
 | `reviewer` | Sari | Read-only review incl. security checks | `ninerouter/quality-high` |
 | `documenter` | Nadia | Docs, solutioning docs (targeted README/CHANGELOG updates), code comments | `ninerouter/documentation-low` |
 | `devops` | Dimas | CI/build/signing/release tooling | `ninerouter/infrastructure-high` |
-| `memory-manager` | Arsa | Only agent with Hermes MCP tools; writeback + memory commands | `ninerouter/quality-safer` |
 
-Each agent file opens with a short **Soul**: a name, a character, and the habits that keep it from making mistakes (evidence for every claim, small diffs, real test output, a self-check before reporting). Each file's heading is `# <Nama> - <Peran>` (e.g. `# Pingot - Analyst`); the visualizer reads name and role from that heading, so renaming an agent only means editing its file.
+The former `orchestrator` (Risko) and `memory-manager` (Arsa) agents were removed: Hermes now does their jobs (routing/review loop, Knowledge Graph reads and writes). Their prompts are in the pre-migration backup and in git history.
 
-opencode's built-in `general` and `explore` subagents are disabled in `opencode.json` so the orchestrator only delegates to this roster.
+Each agent file opens with a short **Soul**: a name, a character, and the habits that keep it from making mistakes. Each file's heading is `# <Nama> - <Peran>` (e.g. `# Pingot - Analyst`); the visualizer reads name and role from that heading (the standing orchestrator character uses `agents/hermes.md`).
+
+opencode's built-in `general` and `explore` subagents are disabled in `opencode.json`.
 
 ## Tool Permission Pattern
 
 - `scout`, `architect`, `reviewer`: read-only (`scout` also has `webfetch`).
 - `coder`, `qa`, `devops`: write + bash. `documenter`: write, no bash.
-- `hermes-memory_*` tools are off globally (`opencode.json`) and enabled only for `memory-manager`, so their schemas aren't sent with every other agent's requests.
+- `hermes`: shell + read only, `task: false` (cannot delegate inside OpenCode). OpenCode v2.0.28 cannot restrict shell by command pattern (a `permission.bash`/`permission.shell` deny-all removes the tool), so the restriction to `bin/oc` is by prompt.
+- Every specialist has `task: false`: Hermes is the only one that routes. Do not set `read: false` on an agent — on OpenCode v2.0.28 that silently switches the run to OpenCode's free-tier model.
+- `hermes-memory_*` tools are off for every agent here (`opencode.json`); only Hermes writes the Knowledge Graph.
 
 ## Skills
 
@@ -87,41 +92,47 @@ Current skills:
 | `api-contract-conventions` | How the app calls the documented backend API correctly: versioning, error envelope, cursor pagination, `Idempotency-Key`, async submit-then-poll flows. |
 | `security-boundaries` | App-side auth only: token handling, never trusting local state for server-authoritative values, upload pre-checks are UX-only. |
 | `seed-visualization` | How each seed species is drawn as an animated procedural potted plant (`garden/.../plant_visual/`), and the checklist to add or change a species: resolver, blueprint builder, l10n, mock, tests. |
+| `cms-nextjs-architecture` | GROWPICO CMS (`growpico-cms/`, Next.js App Router): scaffold commands, folder layout, Server/Client rules, domain → route → spec → contract map, build order. |
+| `cms-ui-slicing` | Slicing CMS screens from PNGs in `growpico-cms/design/`: region mapping, shared components, Tailwind v4 tokens, per-screen Definition of Done. |
+| `cms-api-contract` | CMS calls to `/v1/admin/*`: conventions, error envelope, `reason`/`auditId`, contract → types/Zod/adapter/mock procedure, mock vs go adapter. |
+| `cms-security-boundaries` | CMS auth and secrets: iron-session cookie, server-only Go calls, `proxy.ts` redirect, cosmetic RBAC, mock-mode guard, open decisions. |
 
-Skills are loaded on demand when the task matches their domain. `spec-first` holds the keyword → spec file map, so specs are opened selectively instead of reading the ~690 KB spec tree.
+Skills are loaded on demand by the specialist agents; Hermes names the relevant ones in each handoff. `spec-first` holds the keyword → spec file map, so specs are opened selectively instead of reading the ~690 KB spec tree.
 
-## Command Workflows
+## Command Workflows (route templates)
 
-Each command is a file in `commands/`, so only the invoked command's route is sent to the model.
+Each file in `commands/` is a route template with `agent: hermes`. In OpenCode it is a slash command handled by the `hermes` front door; Hermes itself reads the same file (`get_route`, or embedded by `bin/oc`) and follows its route.
 
-| Command | Route |
+| Route | Route |
 | --- | --- |
-| `/feature` | small: `scout → coder → reviewer` · medium: `+ qa` · architecture: `scout → architect → coder → reviewer → qa` |
-| `/bugfix` | `scout (diagnose) → coder (fix) → reviewer` (+ `qa` if business logic changed) |
-| `/refactor` | `scout → coder → reviewer` (+ `qa` if large) |
-| `/review` | `reviewer` |
-| `/security` | `reviewer` (security mode); `coder → reviewer` only if fixes are requested |
-| `/performance` | `scout → coder → reviewer` |
-| `/document`, `/comment` | `documenter` (runs directly, no orchestrator) |
-| `/devops` | `devops → reviewer` |
-| `/analyze` | `scout` (+ `architect` for design questions); answered from memory when possible |
-| `/solutioning` | doc-only: `documenter` · spec/design: `architect → documenter` (only if files change) |
-| `/memory`, `/memory-status`, `/memory-search`, `/compact`, `/forget` | `memory-manager` directly (subtask) |
-| `/help` | static list |
+| `feature` | small: `scout → coder → reviewer` · medium: `+ qa` · architecture: `scout → architect → coder → reviewer → qa` |
+| `bugfix` | `scout (diagnose) → coder (fix) → reviewer` (+ `qa` if business logic changed) |
+| `refactor` | `scout → coder → reviewer` (+ `qa` if large) |
+| `review` | `reviewer` |
+| `security` | `reviewer` (security mode); `coder → reviewer` only if fixes are requested |
+| `performance` | `scout → coder → reviewer` |
+| `document`, `comment` | `documenter` |
+| `devops` | `devops → reviewer` |
+| `analyze` | `scout` (+ `architect` for design questions) |
+| `solutioning` | doc-only: `documenter` · spec/design: `architect → documenter` (only if files change) |
+| `memory`, `memory-status`, `memory-search` | Hermes answers from the Knowledge Graph (read-only) |
+| `compact`, `forget` | Hermes proposes changes and asks before writing/deleting |
+| `help` | static list |
 
-### Workflow Rules
+### Workflow Rules (enforced by Hermes)
 
-- Handoffs between agents are summaries (≤ 30 lines), never full outputs.
-- Reviewer `FAIL` → coder gets only `REQUIRED_FIXES`; max 2 rounds, then the orchestrator pauses for you.
-- Tool-call budgets: small 15 · medium 40 · architecture 80.
-- `memory-manager` runs only when a workflow produced something reusable (decision, root cause, gotcha, pattern).
+- Handoffs between steps are summaries (≤ 30 lines), never full outputs.
+- Reviewer `FAIL` → coder gets only `REQUIRED_FIXES`; max 2 rounds, then Hermes pauses for you.
+- At most one retry per failed step; OpenCode never retries on its own.
+- Knowledge is written only by Hermes, only when reusable (decision, root cause, gotcha, pattern), tagged `[project:growpico]` with provenance.
 
 ### Memory
 
-`plugins/memory-recall.ts` reads the Hermes knowledge graph (`~/.hermes/profiles/rtdigital/memories/mcp/knowledge.json`) directly, scores entities against each prompt by keyword, and appends the top matches (≤ ~1k tokens) to that session's system prompt as `MEMORY CONTEXT`. That covers the orchestrator and every subagent (based on its own task), with no MCP round trips. The orchestrator answers `/analyze` and `/solutioning` questions from memory when it already has the answer.
+Canonical Knowledge Graph (since 2026-10-21): `~/.hermes/profiles/hermes-ferry/memories/mcp/knowledge.json`, owned by the `hermes-ferry` profile. Hermes reads it before planning and writes it after the work through its `memory` MCP server; relevant findings reach the agents inside the handoff. The former `plugins/memory-recall.ts` (passive keyword recall for orchestrator/documenter) was removed as a duplicate of Hermes' recall.
 
-- `MEMORY_RECALL=off` disables it; `MEMORY_RECALL_FILE=/path/knowledge.json` points it elsewhere.
-- Writes still go through `memory-manager` (hermes-memory MCP). Its `search_nodes` matches the query as one substring, so the manager searches one keyword per call.
+Legacy file: `~/.hermes/profiles/rtdigital/memories/mcp/knowledge.json` still exists and is still read through the **global** OpenCode MCP server `hermes-memory` (`~/.config/opencode/opencode.jsonc`). It is frozen, not synchronised: nothing copies between it and the canonical file, and there is **no single source of truth** until the OpenCode consumer path through Hermes exists. Do not claim the two are in sync.
+
+Provenance is convention metadata, not enforcement. `[project:<scope>]` and `area:app|be|iot` live as text in an entity's observation; `@modelcontextprotocol/server-memory` has no tag field, `search_nodes` matches them as plain text only, and `open_nodes` cannot filter by them. Known scopes: `growpico` (areas `app`, `be`, `iot`), `rt-rw`, `shared`, `pasconnect`, `gts`, `unclassified`. Only `growpico` is a registered `project_id` in `hermes-agent-os/projects/`; `pasconnect` and `gts` are knowledge classifications, not dispatchable projects.
 
 ## 9Router Setup
 
@@ -152,20 +163,7 @@ If your installation uses a different package or binary name, keep that official
 
 ### 2. Configure 9Router Credentials
 
-Set your 9Router API key in your shell environment. Use your actual key value.
-
-```sh
-export NINEROUTER_API_KEY="your-api-key"
-```
-
-If your 9Router provider uses OpenAI-compatible environment variables, also set:
-
-```sh
-export OPENAI_API_KEY="$NINEROUTER_API_KEY"
-export OPENAI_BASE_URL="https://api.9router.ai/v1"
-```
-
-Use the exact base URL from your 9Router account/provider documentation if it differs.
+9Router runs locally (`http://localhost:20128/v1`). The `ninerouter` provider is defined in the global `~/.config/opencode/opencode.jsonc`; its API key is stored by OpenCode in `~/.local/share/opencode/auth.json` (`opencode auth`). Hermes uses its own copy of the key in `~/.hermes/profiles/hermes-ferry/.env` (`NINEROUTER_API_KEY`). Never commit keys.
 
 ### 3. Configure opencode Provider
 
@@ -264,7 +262,7 @@ Rules:
 - **Workflow View** (default): a 3D "team room" showing agents at work while you prompt. Each agent has a seat at its team room's round table, and the orchestrator walks over to whoever it just delegated to. Bubbles show the running tool, and the whiteboard and cards show task status.
 - **Agent Chat View** (`?view=chat`): a read-only, Slack-style monitor of who sent what to whom. See [Agent Chat View](#agent-chat-view).
 
-Events reach the page from the bridge daemon on `ws://localhost:4777` (`plugins/office-bridge.ts` for OpenCode, `bridge/hook.mjs` for Claude Code and Cline; see [Multi-tool setup](#multi-tool-setup-opencode--cline--claude-code)).
+Events reach the page from the bridge daemon on `ws://localhost:4777` (`plugins/office-bridge.ts` for OpenCode, `bridge/hook.sh` → `bridge/hook.mjs` for Claude Code and Cline; see [Multi-tool setup](#multi-tool-setup-opencode--cline--claude-code)).
 
 ```bash
 cd .opencode/visualizer
@@ -307,28 +305,30 @@ Every `mode: subagent` file in `agents/` gets a seat automatically; its color co
 
 ## Multi-tool setup (OpenCode + Cline + Claude Code)
 
-`.opencode/` stays the single source of truth; see `../AGENTS.md` for the short version.
+`.opencode/` stays the single source of truth; see `../AGENTS.md` for the short version. OpenCode and Cline are clients of Hermes; Claude Code is standalone (its own session orchestrates the same specialists as Claude Code subagents on Claude models) and feeds the visualizer.
 
-### How each tool triggers the roster
+### How each tool reaches Hermes
 
 | Tool | Trigger | Visualizer feed |
 | --- | --- | --- |
-| OpenCode | Native: `agents/`, `commands/` and `skills/` are read directly (`/feature`, `/bugfix`, ...). | `plugins/office-bridge.ts` |
-| Claude Code | `../CLAUDE.md` imports `../.claude/orchestrator.md`; the model delegates with the Task tool to `../.claude/agents/*` and uses `../.claude/commands/*`. | `bridge/hook.mjs claude` via `../.claude/settings.json` |
-| Cline | Cannot load named agents. Workflows in `../.clinerules/workflows/` run the real OpenCode roster through `bin/oc`. | `bridge/hook.mjs cline` via `../.clinerules/hooks/*.sh` |
+| Hermes | `hermes -p hermes-ferry -s agent-os-orchestrate` or `bin/oc <route> "<request>"` | Hermes shell hooks + adapter (`agent: hermes`, `taskId`) |
+| OpenCode | Default agent `hermes` relays every message and slash command to Hermes via `bin/oc`. | `plugins/office-bridge.ts` |
+| Claude Code | Standalone: does not submit to Hermes (no `oc` permission, no 9Router). The session orchestrates the specialists itself via `../.claude/commands/<route>.md` and `../.claude/agents/<name>.md` (Claude models). | `bash bridge/hook.sh claude` via `../.claude/settings.json` |
+| Cline | Workflows in `../.clinerules/workflows/` submit to Hermes via `bin/oc`. | `bridge/hook.sh cline` via `../.clinerules/hooks/<Event>` (no extension) |
 
-`bin/oc` runs the real roster from any shell: `oc cmd feature "<request>"` or `oc agent scout "<question>"` (the latter is routed via the orchestrator, since subagents cannot be `opencode run --agent` targets). Names must match `^[a-z][a-z0-9-]*$`.
+`bin/oc` (wraps `hermes-agent-os/bin/hermes-task.mjs`): `oc <route> "<request>"`, `oc ask "<request>"`, `oc agent <name> "<task>"`, `oc routes`; add `--async` to get a task id, then `oc wait <task_id>`. The request can come on stdin (quoted heredoc) so user text is never shell-interpolated. One chat = one Hermes task: follow-up messages are turns of the same task (OpenCode's `$OPENCODE_SESSION_ID`, or `--task <task_id>` from Cline/shell) and Hermes resumes its own session; `--new` starts a separate task, `oc status <task_id> --turn N` shows an earlier turn.
 
 ### `bridge/sync.mjs`
 
-`node .opencode/bridge/sync.mjs` regenerates, from `agents/`, `commands/` and `skills/` (re-run after editing them):
+`node .opencode/bridge/sync.mjs` regenerates (re-run after editing `agents/` or `commands/`):
 
-- `../.claude/agents/*.md`: every `mode: subagent` agent except `memory-manager` (needs Hermes MCP tools, OpenCode only); tools mapped to Claude tool names.
-- `../.claude/commands/*.md` and `../.clinerules/workflows/*.md`: every command except `memory`, `memory-status`, `memory-search`, `compact`, `forget`, `help`.
-- `../.claude/orchestrator.md`: the orchestrator prompt with the Memory sections and the `memory-manager` roster line removed.
-- `../.claude/skills`: a symlink to `.opencode/skills` (Claude Code and Cline both read it).
+- `../.clinerules/workflows/*.md`: one thin "submit this route to Hermes" file per route.
+- `../.claude/skills`: a symlink to `.opencode/skills`.
+- `../.claude/agents/*.md`: the 7 specialists as Claude Code subagents (not `hermes`). Body = the OpenCode persona minus OpenCode-only lines; tools mapped from the `tools:` block (+ `Skill`); model from `CLAUDE_MODELS` in `sync.mjs` (scout/qa/devops sonnet, architect/coder/reviewer opus, documenter haiku).
+- `../.claude/commands/*.md`: the agent routes as Claude Code slash commands that the Claude session orchestrates with the Agent tool (no Hermes). Knowledge Graph routes (`memory*`, `compact`, `forget`) and `help` are not generated (Hermes-only, or shadow Claude Code built-ins); `Memory:` lines are dropped.
+- It removes stale generated Claude files (`../.claude/hermes.md`, `../.claude/orchestrator.md`).
 
-Generated files start with a `GENERATED by .opencode/bridge/sync.mjs` marker; stale generated files are removed, hand-written ones never are. **`../.claude/settings.json` (the Claude Code hooks) is NOT generated** by sync; edit it by hand. Likewise `../.clinerules/hooks/*.sh` and `no-polling-loops.md` are hand-written.
+Generated files start with a `GENERATED by .opencode/bridge/sync.mjs` marker; stale generated files are removed, hand-written ones never are. **`../.claude/settings.json` (visualizer hooks) is NOT generated**; edit it by hand. Likewise `../.clinerules/hooks/<Event>` and `no-polling-loops.md` are hand-written.
 
 ### Bridge components
 
@@ -345,10 +345,11 @@ Generated files start with a `GENERATED by .opencode/bridge/sync.mjs` marker; st
 
   Guards: `Host` must be `localhost:<port>` or `127.0.0.1:<port>`; a present `Origin` must be `http://localhost:5173`, `http://127.0.0.1:5173` or `OFFICE_VISUALIZER_ORIGIN` (otherwise 403); POST needs `application/json` (415), body at most 64 KB (413), bad JSON is 400. There is no authentication beyond that, so any local process can post events. WebSocket clients get `{type:"hello", replay}` and then live events; client frames other than ping/close are ignored.
 - **`bridge/emit.mjs`**: client used by the plugin and hooks. `emit()` never throws; on `ECONNREFUSED` it spawns the daemon (guarded by a spawn file in the temp dir, 30 s negative cache) and retries. It also exposes `claim`/`release`/`supersede`, which fail open when the daemon is unreachable. `OFFICE_BRIDGE=off` makes all of them no-ops.
-- **`bridge/hook.mjs <cline|claude>`**: reads the hook payload on stdin, always exits 0, emits events (see the per-tool matrix below) and enforces write locks. Claude Code hooks registered in `../.claude/settings.json`: `SessionStart`, `UserPromptSubmit`, `PreToolUse` (all tools), `PostToolUse` (only `Task|Agent`), `PostToolUseFailure` (all tools), `SubagentStop`, `Stop`, `SessionEnd`. Cline hooks in `../.clinerules/hooks/`: `TaskStart`, `TaskResume`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `TaskComplete`, `TaskCancel`, `TaskError` (each script calls `hook.mjs cline <Event>`, falling back to `{"cancel":false}`).
+- **`bridge/hook.sh <cline|claude> [Event]`**: launcher used by both tools. Resolves `node` (`$OFFICE_NODE`, PATH, `~/.hermes/node/bin`, Homebrew, `/usr/local`, newest nvm), appends a breadcrumb (`.opencode/bridge/hook-shell.log`) and `exec`s `bridge/hook.mjs "$@"`. No node found: exits 0, printing `{"cancel":false}` for Cline (never blocks a tool call).
+- **`bridge/hook.mjs <cline|claude>`**: reads the hook payload on stdin, always exits 0, emits events (see the per-tool matrix below) and enforces write locks. Claude Code hooks registered in `../.claude/settings.json` run `bash "$CLAUDE_PROJECT_DIR/.opencode/bridge/hook.sh" claude`: `SessionStart`, `UserPromptSubmit`, `PreToolUse` (all tools), `PostToolUse` (only `Task|Agent`), `PostToolUseFailure` (all tools), `SubagentStop`, `Stop`, `SessionEnd`. Cline hooks in `../.clinerules/hooks/`: `TaskStart`, `TaskResume`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `TaskComplete`, `TaskCancel`, `TaskError` (each script is `<Event>` with no extension — what Cline 4.1.x looks for — and calls `hook.sh cline <Event>`, falling back to `{"cancel":false}`).
 - **`plugins/office-bridge.ts`**: OpenCode plugin (v2 plugin API). Turns session/tool events into bridge events and claims write locks before `edit`/`write`/`patch`; denial is a thrown Error, daemon trouble fails open.
 - **`bridge/coordinator.mjs`**: the write-lock logic used by the daemon (see [Feature write locks](#feature-write-locks)); configured by `coordination.json` (`OFFICE_COORDINATION` overrides the path).
-- **`bridge/hook.log`**: see below. `OFFICE_HOOK_LOG` overrides its path. Cline scripts also append a breadcrumb to `bridge/hook-shell.log` (`OFFICE_HOOK_SHELL_LOG` overrides; capped at ~200 KB; git-ignored).
+- **`bridge/hook.log`**: see below. `OFFICE_HOOK_LOG` overrides its path. The launcher `bridge/hook.sh` also appends a breadcrumb per invocation to `bridge/hook-shell.log` (`OFFICE_HOOK_SHELL_LOG` overrides; capped at ~200 KB; git-ignored): timestamp, tool source, event and the resolved node.
 - Restart OpenCode after updating: an older instance still running the in-process bridge keeps port 4777. Restart the daemon too after upgrading `bridge/` (see [Limitations](#limitations-and-known-gaps)).
 
 ### Feature write locks
@@ -424,7 +425,7 @@ Known gaps:
 
 A read-only monitor of agent-to-agent traffic, opened with the toggle at the bottom of the page or `?view=chat`. Header: connection state, event count, and chips for parse errors and "older history dropped".
 
-- **Channel list (left)**: `All Agents`, then pinned channels `orchestrator`, `scout`, `architect`, `coder`, `reviewer`, `memory-manager` (scout is pinned because the bridge relabels unknown subagent types to it, so it is often the busiest), then any other observed agent ids. Each channel shows task status, unread count (99+ cap), last task, message count, last time, `requested as:` aliases and a tool-error badge.
+- **Channel list (left)**: `All Agents`, then pinned channels `orchestrator` (Hermes), `scout`, `architect`, `coder`, `reviewer` (scout is pinned because the bridge relabels unknown subagent types to it, so it is often the busiest), then any other observed agent ids. Each channel shows task status, unread count (99+ cap), last task, message count, last time, `requested as:` aliases and a tool-error badge.
 - **Feed (middle)**: messages grouped by sender, newest at the bottom, 500 rows per page (`Show more`), auto-follow with a "Jump to latest" pill. Each row: time, route (`→ receiver`), type badge, summary, short correlation id (click to isolate the task), reply count, status, duration.
 - **Thread panel (right)**: the task's `dispatch` as root, linked events in time order (same `correlationId`, plus OpenCode child-session events), full prompt/result/error, collapsible metadata and masked payload JSON.
 - **Filters and search**: free text over text/prompt/result/error/agent/target/requestedAgent/ids/toolName; sender, receiver, status (`pending|ok|error|interrupted|unknown`), kinds (`prompt|dispatch|handback|error|activity|lifecycle|lock|other`, default `prompt,dispatch,handback,error`), time presets (all time, 5 min, 15 min, 1 h, 24 h; refreshed every 30 s), and a per-task isolate chip.
@@ -465,7 +466,8 @@ Not captured by any tool: successful tool results (there is no `tool.result` eve
 - `plugins/office-bridge.ts` is only typechecked; its runtime behavior is not covered by an automated test.
 - There are no browser/UI automated tests; only the store, reducers and bridge are tested.
 - Pre-existing: the Workflow reducer in `visualizer/src/office.ts` reads `action.event.agent` without a null check, so a `null` entry inside a `hello` replay would throw. A top-level `null` WebSocket message never reaches it (`useOfficeStream` counts it as a parse error).
-- Cline has no dispatch/handback and labels sub-agents `scout`; OpenCode handbacks carry no result text.
+- Cline has no dispatch/handback and labels sub-agents `scout`; OpenCode's own handbacks carry no result text (Hermes Agent OS handbacks do: `result`, `status`, `durationMs`).
+- Hermes events use `agent: hermes` (shown as the orchestrator character) and carry `taskId`/`executionId`/`projectId`; OpenCode events of a Hermes-dispatched run carry the same ids.
 
 ## Testing
 
@@ -477,7 +479,7 @@ cd .opencode/visualizer && npx tsc --noEmit       # typecheck only
 .opencode/node_modules/.bin/tsc --noEmit -p .opencode/tsconfig.json   # plugin + .d.mts typecheck
 ```
 
-Last reported counts: bridge 187 tests, visualizer 83 tests (not re-run when this section was written).
+Last run (2026-10-20, Hermes Agent OS migration): bridge 188 tests pass, visualizer 101 tests pass, both typechecks clean.
 
 | Suite | Covers |
 | --- | --- |
@@ -507,7 +509,7 @@ Last reported counts: bridge 187 tests, visualizer 83 tests (not re-run when thi
 - Never commit API keys, tokens, signing keys, or credentials.
 - Prefer environment variables for provider credentials.
 - Keep write/edit permissions limited to agents that need them.
-- Route auth, token, signaling, and P2P tasks through security-oriented skills and the `security` agent.
+- Route auth, token, signaling, and P2P tasks through the `security` route (reviewer in security mode, skill `security-boundaries`).
 
 ## Troubleshooting
 
@@ -536,16 +538,16 @@ Restart opencode. Config, agents, skills, plugins, and MCP definitions are loade
 1. `curl http://localhost:4777/health` should answer `{"ok":true,...}`. If it answers `office-bridge ok` instead, an old in-process bridge holds the port: quit that OpenCode instance, stop the process on 4777 and send any event so a fresh daemon starts.
 2. Make sure `OFFICE_BRIDGE` is not `off` and the page uses the same port (`?bridge=ws://localhost:<port>` when `OFFICE_BRIDGE_PORT` is set).
 3. After upgrading `bridge/`, restart the daemon (and OpenCode).
-4. Check `bridge/hook.log` (and `bridge/hook-shell.log` for Cline) to see whether hooks fired; Claude Code needs `../.claude/settings.json`, Cline runs the scripts in `../.clinerules/hooks/`, which need `node` on the PATH (the scripts add common locations such as Homebrew and nvm).
+4. Check `bridge/hook.log` and `bridge/hook-shell.log` (both tools) to see whether hooks fired: the shell log proves the hook was launched and from which tool, and which node it resolved. Claude Code needs `../.claude/settings.json`, Cline runs the scripts in `../.clinerules/hooks/` — both go through `bridge/hook.sh`, which finds `node` even on the minimal PATH of a VS Code-launched tool.
 5. "older history dropped" in the Chat View is expected after a daemon restart or when more than 500 events / 600 KB were produced.
 
 ### `node --test .opencode/bridge/test` fails on Node 22
 
 Node 22 rejects a directory argument; pass the glob `.opencode/bridge/test/*.test.mjs`.
 
-### Agents or skills missing in Claude Code / Cline
+### Workflows or skills missing in Cline / Claude Code
 
-Run `node .opencode/bridge/sync.mjs`; it regenerates `.claude/` and `.clinerules/workflows/` (not `.claude/settings.json`).
+Run `node .opencode/bridge/sync.mjs`; it regenerates `.clinerules/workflows/` and the `.claude/skills` symlink (not `.claude/settings.json`). The roster is not copied into Cline (it submits to Hermes) or Claude Code (standalone).
 
 ### Model not found or provider authentication fails
 

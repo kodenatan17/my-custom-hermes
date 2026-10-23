@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Hook adapter: turns Cline / Claude Code hook payloads (JSON on stdin) into office events.
-//   node hook.mjs cline    <- .clinerules/hooks/*
-//   node hook.mjs claude   <- .claude/settings.json hooks
+//   bash hook.sh cline     <- .clinerules/hooks/<Event>  (launcher; also .claude/settings.json with `claude`)
+//   node hook.mjs claude   <- direct invocation (tests); .claude/settings.json uses `bash hook.sh claude`
 // Always exits 0. Observability, plus write-lock enforcement: a write tool (edit/write/patch) on a feature
 // held by another tool is claimed first and, per `onConflict` in coordination.json, either DENIED after the wait
 // budget (claude) or waited on and then let through with a warning (cline: a Cline deny kills the whole run).

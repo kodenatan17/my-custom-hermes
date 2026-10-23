@@ -1,8 +1,9 @@
 ---
 description: Review code or recent changes (reviewer only)
-agent: orchestrator
+agent: hermes
 ---
 
+Route: review
 Review: <request>$ARGUMENTS</request>
 
-Route: reviewer only — it finds the files itself. No scout, no memory writeback unless it reports a CRITICAL/HIGH issue worth remembering.
+Route: reviewer only — it finds the files itself. No scout. Memory: save only a CRITICAL/HIGH issue worth remembering.

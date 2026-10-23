@@ -1,6 +1,9 @@
 ---
 description: Add or improve code comments (documenter only)
-agent: documenter
+agent: hermes
 ---
 
-Mode: comment. Task: <request>$ARGUMENTS</request>
+Route: comment
+Task: <request>$ARGUMENTS</request>
+
+Route: documenter(comment) only.

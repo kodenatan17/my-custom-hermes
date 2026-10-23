@@ -1,6 +1,9 @@
 ---
 description: Update documentation (documenter only)
-agent: documenter
+agent: hermes
 ---
 
-Mode: docs. Task: <request>$ARGUMENTS</request>
+Route: document
+Task: <request>$ARGUMENTS</request>
+
+Route: documenter(docs) only.

@@ -1,19 +1,36 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Connection, UnreadState } from "../useOfficeStream"
-import { AgentList } from "./AgentList"
+import { AgentList } from "./AgentColumn"
 import { DetailPanel } from "./DetailPanel"
 import {
+  agentEntries,
   agentSummaries,
   buildIndex,
+  buildRooms,
   DEFAULT_KINDS,
   filterEntries,
   linkedEvents,
+  partnersOf,
+  roomEntries,
   threadRootOf,
-  unreadCounts,
   USER,
   type InteractionState,
 } from "./model.mjs"
+import { PartnerList } from "./PartnerList"
 import { Timeline } from "./Timeline"
+
+/** Live `matchMedia` flag (narrow = single-pane layout). */
+function useMedia(query: string) {
+  const [match, setMatch] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const on = () => setMatch(mq.matches)
+    on()
+    mq.addEventListener("change", on)
+    return () => mq.removeEventListener("change", on)
+  }, [query])
+  return match
+}
 
 export type ChatFilterState = {
   sender: string
@@ -30,6 +47,9 @@ export const EMPTY_FILTER: ChatFilterState = { sender: "", receiver: "", correla
 const PAGE = 500
 const TICK_MS = 30_000
 
+/** Narrow screens show one pane at a time: agents -> conversations -> messages. */
+type Pane = "agents" | "partners" | "messages"
+
 type Props = {
   interactions: InteractionState
   connection: Connection
@@ -38,11 +58,16 @@ type Props = {
   onSeen: (agent: string, seq: number) => void
 }
 
-/** Agent Chat View (read-only monitoring): channels | message feed | thread. Owns filter, search and selection state. */
+/** Agent Chat View (read-only monitoring): agents | their conversations | messages of one pair | thread. */
 export function ChatView({ interactions, connection, demo, unread, onSeen }: Props) {
   const { entries } = interactions
-  const [agent, setAgent] = useState<string | null>(null)
+  const narrow = useMedia("(max-width: 699px)")
+  // undefined = follow the default (orchestrator first, its newest conversation) until the user picks one.
+  const [agentId, setAgentId] = useState<string | undefined>(undefined)
+  const [roomId, setRoomId] = useState<string | undefined>(undefined)
+  const [pane, setPane] = useState<Pane>("agents")
   const [filter, setFilter] = useState<ChatFilterState>(EMPTY_FILTER)
+  const [filterOpen, setFilterOpen] = useState(false)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [limit, setLimit] = useState(PAGE)
   // Time presets are relative to "now": refresh them even when no events arrive.
@@ -52,17 +77,37 @@ export function ChatView({ interactions, connection, demo, unread, onSeen }: Pro
     return () => clearInterval(t)
   }, [])
 
-  // Viewing a channel marks it read (also for events arriving while it is open).
-  useEffect(() => {
-    if (agent) onSeen(agent, interactions.seq)
-  }, [agent, interactions.seq, onSeen])
-
   const index = useMemo(() => buildIndex(entries), [entries])
   const summaries = useMemo(() => agentSummaries(entries), [entries])
-  const unreadByAgent = useMemo(() => unreadCounts(entries, unread.baseline, unread.seen), [entries, unread])
+  const rooms = useMemo(() => buildRooms(entries, unread.baseline, unread.seen), [entries, unread])
+  const agents = useMemo(() => agentEntries(rooms), [rooms])
+  // A picked agent / room that vanished (older events trimmed) falls back to the default instead of an empty pane.
+  const currentAgent = agents.some((a) => a.id === agentId) ? agentId : agents[0]?.id
+  const partners = useMemo(() => (currentAgent ? partnersOf(rooms, currentAgent) : []), [rooms, currentAgent])
+  const room = useMemo(() => partners.find((p) => p.room.id === roomId)?.room ?? partners[0]?.room, [partners, roomId])
+
+  // Viewing a conversation marks it read (also for events arriving while it is open). On narrow screens only while it is shown.
+  const roomShown = !narrow || pane === "messages"
+  const shownRoomId = room?.id // a string dep: marking read rebuilds `rooms` (and the room object) but not its id
+  useEffect(() => {
+    if (roomShown && shownRoomId) onSeen(shownRoomId, interactions.seq)
+  }, [roomShown, shownRoomId, interactions.seq, onSeen])
+
+  // Esc closes the filter menu first, then the detail panel / overlay.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      if (filterOpen) setFilterOpen(false)
+      else if (selectedKey) setSelectedKey(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [filterOpen, selectedKey])
+
+  const inRoomEntries = useMemo(() => (room ? roomEntries(room, entries) : []), [room, entries])
   const filtered = useMemo(
-    () => filterEntries(entries, { ...filter, agent, sinceMs: filter.sinceMs || undefined }, index, now),
-    [entries, filter, agent, index, now],
+    () => filterEntries(inRoomEntries, { ...filter, sinceMs: filter.sinceMs || undefined }, index, now),
+    [inRoomEntries, filter, index, now],
   )
   const selected = useMemo(() => entries.find((e) => e.key === selectedKey), [entries, selectedKey])
   const root = useMemo(() => (selected ? threadRootOf(selected, index) : undefined), [selected, index])
@@ -77,12 +122,28 @@ export function ChatView({ interactions, connection, demo, unread, onSeen }: Pro
   }
   const clear = () => {
     setFilter(EMPTY_FILTER)
-    setAgent(null)
     setLimit(PAGE)
+  }
+  const resetRoomView = () => {
+    setSelectedKey(null)
+    setFilterOpen(false)
+    setLimit(PAGE)
+  }
+  const openAgent = (id: string) => {
+    setAgentId(id)
+    setRoomId(undefined) // its newest conversation
+    setPane("partners")
+    resetRoomView()
+  }
+  const openRoom = (id: string) => {
+    setAgentId(currentAgent)
+    setRoomId(id)
+    setPane("messages")
+    resetRoomView()
   }
 
   return (
-    <div className="chat">
+    <div className="chat" data-pane={narrow ? pane : "all"}>
       <header className="card chat-header">
         <h1>
           Agent Chat View <span className="muted">· Seedly · read-only</span>
@@ -104,15 +165,15 @@ export function ChatView({ interactions, connection, demo, unread, onSeen }: Pro
       )}
 
       <div className="chat-columns">
-        <AgentList
+        <AgentList agents={agents} summaries={summaries} selected={currentAgent} onSelect={openAgent} now={now} />
+        <PartnerList
+          agent={currentAgent}
+          partners={partners}
           summaries={summaries}
-          selected={agent}
-          unread={unreadByAgent}
-          total={entries.length}
-          onSelect={(id) => {
-            setAgent(id)
-            setLimit(PAGE)
-          }}
+          selected={room?.id}
+          onSelect={openRoom}
+          onBack={() => setPane("agents")}
+          now={now}
         />
         <Timeline
           all={entries}
@@ -129,8 +190,19 @@ export function ChatView({ interactions, connection, demo, unread, onSeen }: Pro
           onShowMore={() => setLimit((l) => l + PAGE)}
           connection={connection}
           demo={demo}
-          agentFilter={agent}
+          room={room}
+          summaries={summaries}
+          onBack={() => {
+            setPane("partners")
+            setSelectedKey(null)
+          }}
+          filterOpen={filterOpen}
+          onToggleFilter={() => setFilterOpen((o) => !o)}
+          now={now}
+          parseErrors={interactions.parseErrors}
+          historyDropped={interactions.historyDropped}
         />
+        {selected && <div className="chat-backdrop" onClick={() => setSelectedKey(null)} />}
         <DetailPanel
           selected={selected}
           root={root}
@@ -138,6 +210,7 @@ export function ChatView({ interactions, connection, demo, unread, onSeen }: Pro
           index={index}
           onSelect={setSelectedKey}
           onIsolate={(c) => update({ correlationId: c })}
+          onClose={() => setSelectedKey(null)}
         />
       </div>
     </div>

@@ -24,7 +24,7 @@ const abs = (feature) => join(ROOT, f(feature))
 const post = (path, body) => fetch(`http://127.0.0.1:${PORT}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json())
 const locks = async () => (await (await fetch(`http://127.0.0.1:${PORT}/locks`)).json()).locks.map((l) => l.feature)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-const HOOK_ENV = { OFFICE_BRIDGE_PORT: String(PORT), OFFICE_NODE: "/usr/bin/true", OFFICE_HOOK_LOG: LOG, OFFICE_HOOK_SHELL_LOG: SHELL_LOG, OFFICE_MAX_WAIT_SECONDS: "1" }
+const HOOK_ENV = { OFFICE_BRIDGE_PORT: String(PORT), OFFICE_NODE: process.execPath, OFFICE_HOOK_LOG: LOG, OFFICE_HOOK_SHELL_LOG: SHELL_LOG, OFFICE_MAX_WAIT_SECONDS: "1" }
 
 function run(cmd, args, payload, env, replaceEnv = false) {
   return new Promise((resolve) => {
@@ -110,27 +110,39 @@ describe("Cline SDK-shaped payloads", () => {
 })
 
 describe("shell breadcrumb", () => {
-  test("PreToolUse.sh with a minimal env writes a breadcrumb and still emits cancel:false", async () => {
+  test("PreToolUse with a minimal env writes a breadcrumb and still emits cancel:false", async () => {
     const env = { HOME: process.env.HOME, PATH: "/usr/bin:/bin", ...HOOK_ENV }
     const payload = toolCall("read_files", { files: [abs("auth")] }, "T-sh")
-    const r = await run("env", ["-i", ...Object.entries(env).map(([k, v]) => `${k}=${v}`), "bash", join(SCRIPTS, "PreToolUse.sh")], payload, env, true)
+    const r = await run("env", ["-i", ...Object.entries(env).map(([k, v]) => `${k}=${v}`), "bash", join(SCRIPTS, "PreToolUse")], payload, env, true)
     assert.deepEqual(r.json, { cancel: false })
     const line = readFileSync(SHELL_LOG, "utf8").trim().split("\n").pop()
-    assert.match(line, /^\d{4}-\d\d-\d\dT[\d:]+Z PreToolUse node=\S+ ppid=\d+$/)
+    assert.match(line, /^\d{4}-\d\d-\d\dT[\d:]+Z cline PreToolUse node=\S+ ppid=\d+$/)
   })
   test("all 8 scripts are executable and pass their own event name", () => {
     for (const n of ["PreToolUse", "PostToolUse", "TaskStart", "TaskResume", "TaskCancel", "TaskComplete", "TaskError", "UserPromptSubmit"]) {
-      const p = join(SCRIPTS, `${n}.sh`)
-      assert.ok(statSync(p).mode & 0o100, `${n}.sh executable`)
-      assert.ok(readFileSync(p, "utf8").includes(`EV="${n}"`))
+      const p = join(SCRIPTS, `${n}`)
+      assert.ok(statSync(p).mode & 0o100, `${n} executable`)
+      assert.ok(readFileSync(p, "utf8").includes(`cline ${n}`))
     }
   })
-  test("breadcrumb is skipped when the log is over 200KB", async () => {
+  test("hook.sh finds node with env -i and a minimal PATH (VS Code case) and still logs", async (t) => {
+    const shellLog = join(TMP, "minpath-shell.log")
+    const hookLog = join(TMP, "minpath-hook.log")
+    const homes = [join(process.env.HOME ?? "/root", ".hermes", "node", "bin"), "/opt/homebrew/bin", "/usr/local/bin"]
+    if (!homes.some((d) => existsSync(join(d, "node")))) return t.skip("no node outside PATH on this machine")
+    const env = { HOME: process.env.HOME ?? "/root", PATH: "/usr/bin:/bin", OFFICE_BRIDGE_PORT: String(PORT), OFFICE_HOOK_SHELL_LOG: shellLog, OFFICE_HOOK_LOG: hookLog }
+    const r = await run("env", ["-i", ...Object.entries(env).map(([k, v]) => `${k}=${v}`), "bash", join(HERE, "..", "hook.sh"), "claude"], { hook_event_name: "SessionStart", session_id: "s-min" }, env, true)
+    assert.equal(r.code, 0)
+    assert.match(readFileSync(shellLog, "utf8").trim().split("\n").pop(), / claude - node=\/.* ppid=\d+$/)
+    assert.match(readFileSync(hookLog, "utf8"), /"source":"claude"/)
+  })
+  test("breadcrumb rotates to .1 when the log passes 200KB", async () => {
     const big = join(TMP, "big.log")
     writeFileSync(big, "x".repeat(210 * 1024))
     const env = { ...HOOK_ENV, OFFICE_HOOK_SHELL_LOG: big }
-    await run("bash", [join(SCRIPTS, "TaskComplete.sh")], { hookName: "agent_end", taskId: "T-big" }, env)
-    assert.equal(statSync(big).size, 210 * 1024)
+    await run("bash", [join(SCRIPTS, "TaskComplete")], { hookName: "agent_end", taskId: "T-big" }, env)
+    assert.equal(statSync(`${big}.1`).size, 210 * 1024)
+    assert.match(readFileSync(big, "utf8"), / TaskComplete node=\S+ ppid=\d+\n$/)
   })
 })
 

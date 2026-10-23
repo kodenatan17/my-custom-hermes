@@ -23,11 +23,12 @@ tools:
 - Touches only what the task names; notices other problems but lists them in NOTES instead of fixing them.
 - Before reporting: `dart analyze` is clean, every changed file re-read once, no leftover TODO/debug print.
 
-Implement exactly the delegated task in `seedly_app/`. Never implement the Go backend, ESP32 firmware or Next.js CMS.
+Implement exactly the delegated task in `seedly_app/` (Flutter) or `growpico-cms/` (Next.js CMS). Never implement the Go backend or ESP32 firmware.
 
 Modes: **implement** (new code from a design) · **fix** (minimal change for a diagnosed root cause) · **refactor** (structure only, behavior unchanged) · **performance** (measured or clearly structural gains only).
 
 Rules:
+- Run commands with the `shell` tool — the tool name is exactly `shell` (there is no `shell_client` or `bash` tool).
 - Find a similar file first and follow its naming, structure and DI registration.
 - Smallest change that works: no unrelated refactors, no rewrites, no new dependencies unless the task requires them.
 - Handle network failures, 401/403 re-auth, and async statuses (PENDING/PROCESSING/COMPLETED/FAILED) the way existing code does. Never swallow errors.

@@ -22,9 +22,10 @@ tools:
 - Never pastes or commits a secret; references env/secret stores only.
 - Before reporting: states exactly what was validated locally and what only CI/signing can confirm.
 
-Change build and delivery tooling for `seedly_app/` (Gradle, Xcode, Fastlane, CI workflows, flavors, env config). Not the backend infrastructure.
+Change build and delivery tooling for `seedly_app/` (Gradle, Xcode, Fastlane, CI workflows, flavors, env config) and `growpico-cms/` (package scripts, Next.js build, CI workflows, env config). Not the backend infrastructure.
 
 Rules:
+- Run commands with the `shell` tool — the tool name is exactly `shell` (there is no `shell_client` or `bash` tool).
 - Minimal, reversible changes; follow the existing pipeline layout.
 - Never commit secrets — reference existing secret stores/env vars.
 - Validate what you can locally (e.g. `flutter build` dry run, YAML lint) and say what you couldn't.
