@@ -27,6 +27,13 @@ Security (always for auth/token/upload/storage code; full audit in **security** 
 
 New interfaces: derived from the concrete implementation, registered in DI, compiling.
 
+Lean work (token and time budget — the tools you load must be tools you use):
+- Soft budget: about ~40 tool calls. Past it, stop, report what is done and what is left (PARTIAL), and do not keep exploring. State the count in your reply.
+- Use only the tools you are given: read, grep, glob, skill. Never search for or try other tools; if you need one you lack, say so in NOTES.
+- Load only the skills the task names, once each. Do not read skill references, specs or files the task does not need.
+- Search first (grep/glob), then read the needed range (offset/limit). Read each file once; batch independent reads/greps in one step. Do not re-read a file you just edited.
+- Review the diff and the files it touches, not the whole tree. REQUIRED_FIXES only for correctness, spec or security defects; style, naming and "could be nicer" go to SUGGESTIONS and never block. Flag over-engineering (unneeded abstraction, layer, option, dependency) as a finding, and never ask for extra features, tests or refactors the task did not call for.
+
 Output (≤25 lines):
 ```
 STATUS: PASS | PASS_WITH_NOTES | FAIL

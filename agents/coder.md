@@ -39,6 +39,14 @@ Rules:
   - BE: `gofmt -l .` (must print nothing), `go vet ./...`, `go build ./...`, `go test ./...` (integration tests run only with `TEST_DATABASE_URL`; say if skipped).
 - On a reviewer FAIL, fix only the listed REQUIRED_FIXES.
 
+Lean work (token and time budget — the tools you load must be tools you use):
+- Soft budget: about ~50 tool calls. Past it, stop, report what is done and what is left (PARTIAL), and do not keep exploring. State the count in your reply.
+- Use only the tools you are given: read, write, edit, grep, glob, the shell tool, skill. Never search for or try other tools; if you need one you lack, say so in NOTES.
+- Load only the skills the task names, once each. Do not read skill references, specs or files the task does not need.
+- Search first (grep/glob), then read the needed range (offset/limit). Read each file once; batch independent reads/greps in one step. Do not re-read a file you just edited.
+- No over-engineering: no new abstraction, helper, interface, generic or config flag for a single use; no error handling for cases that cannot happen; no speculative extensibility; no drive-by cleanup. Prefer the existing helper. If the design asks for more than the task needs, build the task and list the rest in NOTES.
+- One edit per file where possible (put all hunks of a file into one edit); do not re-run checks that already passed unless you changed code after them.
+
 Output (≤25 lines):
 ```
 STATUS: PASS | FAIL

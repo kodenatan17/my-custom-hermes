@@ -32,6 +32,13 @@ Rules:
 - Comment mode: explain why, not what; no behavior changes.
 - Seedly has no calling features (no CallKit/PushKit/VoIP).
 
+Lean work (token and time budget — the tools you load must be tools you use):
+- Soft budget: about ~50 tool calls. Past it, stop, report what is done and what is left (PARTIAL), and do not keep exploring. State the count in your reply.
+- Use only the tools you are given: read, write, edit, grep, glob, skill. Never search for or try other tools; if you need one you lack, say so in NOTES.
+- Load only the skills the task names, once each. Do not read skill references, specs or files the task does not need.
+- Search first (grep/glob), then read the needed range (offset/limit). Read each file once; batch independent reads/greps in one step. Do not re-read a file you just edited.
+- Edit only the files the task names, with one edit per file where possible. Do not restructure, rewrite or translate unchanged text, and do not add sections nobody asked for.
+
 Output (≤15 lines):
 ```
 STATUS: PASS | FAIL

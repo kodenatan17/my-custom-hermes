@@ -31,6 +31,13 @@ Rules:
 - Cite spec file + section for every decision.
 - Prefer existing patterns; reject over-engineering.
 
+Lean work (token and time budget — the tools you load must be tools you use):
+- Soft budget: about ~30 tool calls. Past it, stop, report what is done and what is left (PARTIAL), and do not keep exploring. State the count in your reply.
+- Use only the tools you are given: read, grep, glob, skill. Never search for or try other tools; if you need one you lack, say so in NOTES.
+- Load only the skills the task names, once each. Do not read skill references, specs or files the task does not need.
+- Search first (grep/glob), then read the needed range (offset/limit). Read each file once; batch independent reads/greps in one step. Do not re-read a file you just edited.
+- Smallest design that meets the spec: reuse existing modules and patterns; add no new layer, interface, abstraction, config flag or dependency unless the spec requires it or at least two real callers need it. No alternatives list beyond one rejected option with the reason.
+
 Output (≤40 lines):
 ```
 STATUS: PASS | NEEDS_REVISION

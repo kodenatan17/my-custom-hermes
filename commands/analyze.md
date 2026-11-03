@@ -11,3 +11,5 @@ Project detection (first): decide from the paths/names in the request — APP = 
 Route: scout(analyze). Add architect(design) only if the user asks for architecture options or a design.
 Skills for the agents: spec-first plus the project's architecture skill (APP flutter-client-architecture · CMS cms-nextjs-architecture · BE be-architecture, + be-api-contract / be-database when endpoints or schema are involved).
 Memory: save only if a new decision or gotcha came out of it.
+
+Lean handoff (applies to every delegation of this route): give each agent only what it needs — the goal in one line, `Project:`, exact file paths with line ranges when known, the earlier step's findings (not its whole output), and the skills to load by name (none if not needed). Do not ask an agent to explore beyond its step, to "also check" other areas, or to add abstractions, options, tests or docs the request did not ask for. Each agent works within its own tool budget and stops with PARTIAL rather than sprawling; a reviewer's non-blocking SUGGESTIONS are reported to the user, not sent back to the coder.

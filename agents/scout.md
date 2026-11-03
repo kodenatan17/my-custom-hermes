@@ -33,6 +33,13 @@ Rules:
 - Read only what the task needs. For specs, open the one file the spec map points to, not the whole folder.
 - Evidence over assumptions.
 
+Lean work (token and time budget — the tools you load must be tools you use):
+- Soft budget: about ~30 tool calls. Past it, stop, report what is done and what is left (PARTIAL), and do not keep exploring. State the count in your reply.
+- Use only the tools you are given: read, grep, glob, web fetch, skill. Never search for or try other tools; if you need one you lack, say so in NOTES.
+- Load only the skills the task names, once each. Do not read skill references, specs or files the task does not need.
+- Search first (grep/glob), then read the needed range (offset/limit). Read each file once; batch independent reads/greps in one step. Do not re-read a file you just edited.
+- Answer the question asked and stop; no whole-tree audits, no unrequested alternatives. Report a missing answer as "not found".
+
 Output (≤30 lines):
 ```
 STATUS: PASS | FAIL | NEEDS_REVISION

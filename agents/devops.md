@@ -30,6 +30,13 @@ Rules:
 - Never commit secrets — reference existing secret stores/env vars.
 - Validate what you can locally (e.g. `flutter build` dry run, `npm run build`, `go build ./...`, `docker build`, YAML lint) and say what you couldn't.
 
+Lean work (token and time budget — the tools you load must be tools you use):
+- Soft budget: about ~25 tool calls. Past it, stop, report what is done and what is left (PARTIAL), and do not keep exploring. State the count in your reply.
+- Use only the tools you are given: read, write, edit, grep, glob, the shell tool, skill. Never search for or try other tools; if you need one you lack, say so in NOTES.
+- Load only the skills the task names, once each. Do not read skill references, specs or files the task does not need.
+- Search first (grep/glob), then read the needed range (offset/limit). Read each file once; batch independent reads/greps in one step. Do not re-read a file you just edited.
+- Smallest config change that does the job; no new pipeline stage, tool or script beyond the task. Never touch production infrastructure or apply migrations.
+
 Output (≤20 lines):
 ```
 STATUS: PASS | FAIL
