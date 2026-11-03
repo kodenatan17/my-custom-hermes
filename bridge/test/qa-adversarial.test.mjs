@@ -148,7 +148,7 @@ describe("QA caps", () => {
     const { c } = setup()
     c.claim(cl("claude:a", "seedly_app/pubspec.yaml")); c.touch("cline:b", "cline")
     for (const p of ["seedly_app/pubspec.lock", "seedly_app/lib/cores/router/app_router.dart", "seedly_app/lib/cores/dependency/injection.dart"]) {
-      assert.equal(c.claim(cl("cline:b", p)).feature, "_shared")
+      assert.equal(c.claim(cl("cline:b", p)).feature, "app:_shared")
     }
   })
 })

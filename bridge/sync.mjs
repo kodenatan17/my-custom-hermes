@@ -97,7 +97,7 @@ const claudeBody = (body) =>
 
 function agentTools(file) {
   const src = readFileSync(file, "utf8")
-  const block = src.match(/^tools:\n((?:[ \t]+\w+:.*\n)+)/m)?.[1] ?? ""
+  const block = src.match(/^tools:\n((?:[ \t]+(?:"[^"\n]*"|\w+):.*\n)+)/m)?.[1] ?? ""
   const tools = ["Skill"]
   for (const [, name, on] of block.matchAll(/^[ \t]+(\w+):\s*(\w+)/gm)) if (on === "true") tools.push(...(CLAUDE_TOOLS[name] ?? []))
   return tools

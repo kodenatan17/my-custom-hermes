@@ -1,21 +1,23 @@
 # opencode Multi-Agent Workspace
 
-This directory contains the project-local opencode setup for the **Seedly Flutter app** (`seedly_app/`). Seedly's broader system also includes a Go backend, ESP32 firmware, and a Next.js admin CMS, but this workspace only builds the Flutter client — it reads the other systems' specs for context (what APIs the app consumes) and never implements them.
+This directory contains the project-local opencode setup for the three Seedly / GROWPICO projects: the **Flutter app** (`seedly_app/`, APP), the **Next.js admin CMS** (`growpico-cms/`, CMS) and the **Go backend** (`growpico-be/`, BE). The ESP32 firmware (`growpico-iot/`) is out of scope; its specs are read for context only. Project map (paths, skills, verify commands, specs): `../AGENTS.md`.
 
-**Orchestration is owned by Hermes** (Hermes Agent OS, `~/ferry-dev/hermes-agent-os`, Hermes profile `hermes-ferry`). Hermes plans every task, dispatches the specialist agents defined here through its OpenCode adapter (`opencode run --agent <specialist>`, one step at a time), runs the review loop, keeps the Knowledge Graph and writes the final answer. This directory provides the 7 specialist agents, the `hermes` front-door agent, 17 route templates (`commands/`), 5 domain skills, 9Router model routing for the agents, and the event/lock bridge with the visualizer (Workflow View + Agent Chat View). Cline submits to Hermes too; Claude Code is standalone (codes directly) and is only observed by the visualizer (see [Multi-tool setup](#multi-tool-setup-opencode--cline--claude-code)). End-to-end guide: `~/ferry-dev/hermes-agent-os/docs/E2E_GUIDE.md`.
+**Orchestration is owned by Hermes** (Hermes Agent OS, `~/ferry-dev/hermes-agent-os`, Hermes profile `hermes-ferry`). Hermes plans every task, dispatches the specialist agents defined here through its OpenCode adapter (`opencode run --agent <specialist>`, one step at a time), runs the review loop, keeps the Knowledge Graph and writes the final answer. This directory provides the 7 specialist agents, the `hermes` front-door agent, 17 route templates (`commands/`), the domain skills (APP, `cms-*`, `be-*`, `golang-*`), 9Router model routing for the agents, and the event/lock bridge with the visualizer (Workflow View + Agent Chat View). Cline submits to Hermes too; Claude Code is standalone (codes directly) and is only observed by the visualizer (see [Multi-tool setup](#multi-tool-setup-opencode--cline--claude-code)). End-to-end guide: `~/ferry-dev/hermes-agent-os/docs/E2E_GUIDE.md`.
 
 ## Directory Layout
 
 ```text
 .opencode/
 ├── opencode.json              # default agent (hermes), disabled built-ins, global tool switches
-├── coordination.json          # write-lock config (pathRules, wait budgets, onConflict, liveness)
+├── coordination.json          # write-lock config (pathRules per project, wait budgets, onConflict, liveness)
 ├── tsconfig.json              # typechecks plugins/**/*.ts and bridge/**/*.d.mts only
 ├── agents/                    # one .md per agent (file name = agent name; keep it flat)
 ├── commands/                  # one .md per route template; Hermes reads them (also OpenCode slash commands)
 ├── hermes/brief.md            # project brief Hermes reads before planning (scope, roster, rules)
 ├── skills/                    # domain skills, loaded on demand by the specialist agents
 ├── bin/oc                     # submits work to Hermes from any shell / tool (OpenCode, Cline)
+├── bin/oc-eta                 # progress snapshot + estimated time left of a Hermes task (history of earlier runs)
+├── bin/oc-tools               # audit: is every tool an agent loads a tool it really uses (permissions vs Hermes ledger)
 ├── bridge/                    # tool-agnostic event/lock bridge (zero-dependency Node ESM)
 │   ├── daemon.mjs             # owns ws://localhost:4777 + HTTP endpoints
 │   ├── emit.mjs (+ .d.mts)    # client: POST an event (auto-starts the daemon), claim/release/supersede
@@ -23,6 +25,7 @@ This directory contains the project-local opencode setup for the **Seedly Flutte
 │   ├── hook.sh                # shared launcher: resolves node (VS Code PATH has none) then execs hook.mjs
 │   ├── mask.mjs (+ .d.mts)    # secret masking shared by producers, daemon and UI
 │   ├── coordinator.mjs        # per-feature write locks (liveness, queue, breaker)
+│   ├── eta.mjs                # oc-eta: elapsed, per-agent time and tool calls, ETA from finished runs of the same route
 │   ├── sync.mjs               # generates the Cline workflows (submit to Hermes) + Claude Code agents/commands/skills
 │   ├── demo-locks.mjs         # lock contention demo
 │   ├── test/                  # node:test suites for the bridge
@@ -39,6 +42,8 @@ This directory contains the project-local opencode setup for the **Seedly Flutte
 
 Outside this directory, the same setup is wired into the other tools: `../AGENTS.md` and `../CLAUDE.md` (instructions), `../.claude/` (hand-written `settings.json` with the visualizer hooks, generated `agents/` + `commands/`, the `skills` symlink; Claude Code does not use Hermes or 9Router), `../.clinerules/` (Cline hooks and generated workflows, plus `no-polling-loops.md`).
 
+> **Tools an agent loads must be tools it uses.** Every agent's `tools:` block starts with `"*": false` and then lists only what the role needs (OpenCode turns it into `allow * → deny * → allow <tool>`; `write`/`edit` both mean the `edit` action, `bash` is `shell`, `task` is `subagent`). Without the whitelist OpenCode keeps every other tool loaded, including the `search`/`execute` code tool that agents used to hunt for a shell they did not have (31 calls in one reviewer run). Each loaded tool costs tokens on every request. After changing a `tools:` block run `bin/oc-tools` (`--strict` exits 1 on a loaded-but-unused tool or a missing whitelist); `scout` keeps `webfetch` on purpose for its external-docs mode. Keep skill `description:` lines short for the same reason: the list goes out with every request of an agent that has the `skill` tool.
+
 > Agent files must sit directly in `agents/`. opencode names nested files by path (`subagents/research/scout`), which breaks `agent:` references in commands.
 
 ## Agent Model
@@ -48,13 +53,14 @@ Hermes is the orchestrator (outside OpenCode). Here: seven specialist subagents 
 | Agent | Name | Role | Model |
 | --- | --- | --- | --- |
 | `hermes` (primary, default) | Hermes | Front door: submits every message / slash command to Hermes via `bin/oc` and relays the answer. Never dispatched by Hermes. | `ninerouter/researcher-fast` |
+| `observer` (primary) | Rani | Live reporter for a running task, read-only: every ~2 minutes (`bin/oc-eta wait`) says what is running, tool calls per agent and the ETA. Open it in a second window; it never submits or changes anything. Not dispatched by Hermes. | `ninerouter/researcher-fast` |
 | `scout` | Pingot | Read-only: find files/patterns, analyze flow and impact, diagnose root causes, external docs | `ninerouter/researcher-deep` |
 | `architect` | Bima | Read-only: design, implementation steps, spec/business-rule validation | `ninerouter/planning-architect` |
-| `coder` | Zaki | Implement / fix / refactor / performance changes in `seedly_app/` | `ninerouter/implementation-high` |
+| `coder` | Zaki | Implement / fix / refactor / performance changes in `seedly_app/`, `growpico-cms/` or `growpico-be/` | `ninerouter/implementation-high` |
 | `qa` | Lulu | Write and run tests only | `ninerouter/quality-safer` |
 | `reviewer` | Sari | Read-only review incl. security checks | `ninerouter/quality-high` |
 | `documenter` | Nadia | Docs, solutioning docs (targeted README/CHANGELOG updates), code comments | `ninerouter/documentation-low` |
-| `devops` | Dimas | CI/build/signing/release tooling | `ninerouter/infrastructure-high` |
+| `devops` | Dimas | CI/build/signing/release tooling; BE build/deploy config (no production infra changes) | `ninerouter/infrastructure-high` |
 
 The former `orchestrator` (Risko) and `memory-manager` (Arsa) agents were removed: Hermes now does their jobs (routing/review loop, Knowledge Graph reads and writes). Their prompts are in the pre-migration backup and in git history.
 
@@ -78,10 +84,8 @@ Project skills live under:
 .opencode/skills/<skill-name>/SKILL.md
 ```
 
-This workspace builds only the Seedly **Flutter app** (`seedly_app/`) — it
-never implements the Go backend, ESP32 firmware, or Next.js admin CMS.
-Specs for those systems are still read for context (the app consumes their
-APIs), but no skill here covers building them.
+Skills are grouped per project: APP skills have no prefix, CMS skills use `cms-`, BE skills use `be-` plus the
+generic Go skills `golang-*`. No skill covers the ESP32 firmware (`growpico-iot/`, out of scope).
 
 Current skills:
 
@@ -96,6 +100,11 @@ Current skills:
 | `cms-ui-slicing` | Slicing CMS screens from PNGs in `growpico-cms/design/`: region mapping, shared components, Tailwind v4 tokens, per-screen Definition of Done. |
 | `cms-api-contract` | CMS calls to `/v1/admin/*`: conventions, error envelope, `reason`/`auditId`, contract → types/Zod/adapter/mock procedure, mock vs go adapter. |
 | `cms-security-boundaries` | CMS auth and secrets: iron-session cookie, server-only Go calls, `proxy.ts` redirect, cosmetic RBAC, mock-mode guard, open decisions. |
+| `be-architecture` | GROWPICO Go backend (`growpico-be/`): modular monolith layout (`cmd/api`, `internal/{module}`), stdlib `net/http`, `database/sql` + pgx, envelope, build order. |
+| `be-api-contract` | Turning `contracts/api_contracts_{backend,cms,iot}.md` into handlers/services/stores: envelope, pagination, `Idempotency-Key`, error codes, contract gaps. |
+| `be-database` | Dated SQL migrations in `growpico-be/db/migrations/` (applied by hand), schema design, idempotency guards. |
+| `be-security-boundaries` | BE auth and secrets: argon2id, JWT, refresh rotation/revocation, rate limiting, admin session/RBAC/audit log. |
+| `golang-code-style` · `golang-error-handling` · `golang-design-patterns` · `golang-performance` · `golang-security` | Generic idiomatic Go guidance, used together with the `be-*` skills. |
 
 Skills are loaded on demand by the specialist agents; Hermes names the relevant ones in each handoff. `spec-first` holds the keyword → spec file map, so specs are opened selectively instead of reading the ~690 KB spec tree.
 
@@ -354,7 +363,7 @@ Generated files start with a `GENERATED by .opencode/bridge/sync.mjs` marker; st
 
 ### Feature write locks
 
-Write tools (edit/write/patch) claim a feature (`coordination.json`, `pathRules`; cross-cutting files use the sentinel feature `_shared`) through the daemon before running.
+Write tools (edit/write/patch) claim a feature (`coordination.json`, `pathRules`; cross-cutting files use a per-project shared feature from `sharedPaths`) through the daemon before running. Features: `seedly_app/lib/features/<x>/` → `<x>`, `growpico-be/internal/<x>/` → `be:<x>`, `growpico-cms/src/features/<x>/` → `cms:<x>`; shared: `seedly_app` pubspec/router/DI → `app:_shared`, `growpico-be` `go.mod`/`go.sum`, `internal/platform/`, `internal/server/`, `db/migrations/` → `be:_shared`. A BE shared edit does not block an APP shared edit. `sharedPaths` entries are `{ "match": "<regex>", "feature": "<project>:_shared" }`; a bare regex string is the legacy form and locks the global `_shared`. No CMS shared paths are configured yet (`cms:_shared` is available for them).
 
 - **Solo mode**: locks only matter when ANOTHER tool/session is live. A single tool alone (e.g. only Cline) is never denied, never waits and produces no `lock.*` events.
 - **Liveness**: the daemon records `lastSeen` per owner from every `/event` and `/claim` (denied claims too). An owner is live for `liveSeconds` (120) after its last sign of life. A holder that went silent (crashed or cancelled task) is taken over by the next claim (`lock.expired`, reason `stale`); `ttlSeconds` stays the hard upper bound. A waiter that is no longer live never keeps a free lock reserved. Locks that were never announced (solo mode) expire silently: no `lock.expired`.

@@ -23,8 +23,23 @@ export const DEFAULT_CONFIG = {
   phaseOrder: ["slicing", "integration"],
   phaseDefault: "integration",
   phaseByAgent: { coder: "slicing", qa: "integration", reviewer: "integration", devops: "integration", documenter: "integration" },
-  pathRules: [{ match: "^seedly_app/lib/features/([^/]+)/", feature: "$1" }],
-  sharedPaths: ["^seedly_app/pubspec\\.(yaml|lock)$", "^seedly_app/lib/cores/router/", "^seedly_app/lib/cores/dependency/"],
+  // BE/CMS features are prefixed so same-named features of different projects (e.g. auth) don't block each other.
+  pathRules: [
+    { match: "^seedly_app/lib/features/([^/]+)/", feature: "$1" },
+    { match: "^growpico-be/internal/([^/]+)/", feature: "be:$1" },
+    { match: "^growpico-cms/src/features/([^/]+)/", feature: "cms:$1" },
+  ],
+  // Cross-cutting files lock one shared feature PER PROJECT, so a BE go.mod/migration edit never blocks an APP
+  // pubspec/router edit. A bare string entry is the legacy form and locks the global "_shared".
+  sharedPaths: [
+    { match: "^seedly_app/pubspec\\.(yaml|lock)$", feature: "app:_shared" },
+    { match: "^seedly_app/lib/cores/router/", feature: "app:_shared" },
+    { match: "^seedly_app/lib/cores/dependency/", feature: "app:_shared" },
+    { match: "^growpico-be/go\\.(mod|sum)$", feature: "be:_shared" },
+    { match: "^growpico-be/internal/platform/", feature: "be:_shared" },
+    { match: "^growpico-be/internal/server/", feature: "be:_shared" },
+    { match: "^growpico-be/db/migrations/", feature: "be:_shared" },
+  ],
 }
 
 /** Reads coordination.json, falling back to defaults when missing/invalid. Re-reads on mtime change. */
@@ -49,12 +64,18 @@ export function configLoader(file) {
 const MAX_FIELD = 200
 const MAX_ENTRIES = 500
 
-/** Maps a repo-relative path to a feature name ("_shared" for cross-cutting files) or null. Each regex is isolated. */
+/**
+ * Maps a repo-relative path to a feature name or null. Cross-cutting files map to their sharedPaths entry's feature
+ * (per project, e.g. "app:_shared", "be:_shared"); a bare string entry maps to the legacy "_shared". Each regex is isolated.
+ */
 export function featureOf(path, config) {
   const p = String(path ?? "").replace(/\\/g, "/").replace(/^\.\//, "")
-  for (const re of config?.sharedPaths ?? []) {
+  for (const entry of config?.sharedPaths ?? []) {
+    const legacy = typeof entry === "string"
+    const re = legacy ? entry : entry?.match
+    if (typeof re !== "string") continue // new RegExp(undefined) would match every path
     try {
-      if (new RegExp(re).test(p)) return "_shared"
+      if (new RegExp(re).test(p)) return legacy ? "_shared" : String(entry.feature || "_shared").slice(0, MAX_FIELD)
     } catch {}
   }
   for (const r of config?.pathRules ?? []) {

@@ -63,7 +63,7 @@ describe("claim/release over HTTP", () => {
   test("8 release frees, other owner no-op, idempotent", async () => {
     assert.deepEqual((await post("/release", { owner: "nobody" })).json.released, [])
     const r = await post("/release", { owner: "A" })
-    assert.equal(r.status, 200); assert.deepEqual(r.json.released.sort(), ["_shared", "auth"])
+    assert.equal(r.status, 200); assert.deepEqual(r.json.released.sort(), ["app:_shared", "auth"])
     assert.deepEqual((await post("/release", { owner: "A" })).json.released, [])
     const g = await claim({ owner: "B", source: "cline", path: P("auth") })
     assert.equal(g.status, 200) // B was queue head

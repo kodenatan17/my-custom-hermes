@@ -15,6 +15,18 @@
   "phaseOrder": ["slicing", "integration"],
   "phaseDefault": "integration",
   "phaseByAgent": { "coder": "slicing", "qa": "integration", "reviewer": "integration", "devops": "integration", "documenter": "integration" },
-  "pathRules": [{ "match": "^seedly_app/lib/features/([^/]+)/", "feature": "$1" }],
-  "sharedPaths": ["^seedly_app/pubspec\\.(yaml|lock)$", "^seedly_app/lib/cores/router/", "^seedly_app/lib/cores/dependency/"]
+  "pathRules": [
+    { "match": "^seedly_app/lib/features/([^/]+)/", "feature": "$1" },
+    { "match": "^growpico-be/internal/([^/]+)/", "feature": "be:$1" },
+    { "match": "^growpico-cms/src/features/([^/]+)/", "feature": "cms:$1" }
+  ],
+  "sharedPaths": [
+    { "match": "^seedly_app/pubspec\\.(yaml|lock)$", "feature": "app:_shared" },
+    { "match": "^seedly_app/lib/cores/router/", "feature": "app:_shared" },
+    { "match": "^seedly_app/lib/cores/dependency/", "feature": "app:_shared" },
+    { "match": "^growpico-be/go\\.(mod|sum)$", "feature": "be:_shared" },
+    { "match": "^growpico-be/internal/platform/", "feature": "be:_shared" },
+    { "match": "^growpico-be/internal/server/", "feature": "be:_shared" },
+    { "match": "^growpico-be/db/migrations/", "feature": "be:_shared" }
+  ]
 }
