@@ -16,7 +16,7 @@ The Flutter app is explicitly "a projection surface, not a trust boundary" — i
 
 ## When Not to Use
 
-- Device (ESP32) or admin (CMS) authentication mechanics — out of scope for this workspace; the app only ever consumes their *effects* (e.g. a device's `REVOKED` status), never their auth mechanism.
+- Device (ESP32) or admin (CMS) authentication mechanics — out of scope for this workspace; the app only ever consumes their *effects* (e.g. a device's `REVOKED` status), never their auth mechanism. The CMS equivalent is `cms-security-boundaries`.
 
 ## Constraints
 

@@ -1,0 +1,10 @@
+---
+description: Memory statistics and compaction candidates (read-only)
+agent: hermes
+---
+
+Route: memory-status
+Request: <request>$ARGUMENTS</request>
+
+Answer directly with the Knowledge Graph tools — no dispatch, no writes.
+Counts per entityType (tagged `[project:growpico]` vs untagged). Flag compaction when there are 5 or more session_learning entities for this project.

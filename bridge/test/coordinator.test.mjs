@@ -43,15 +43,34 @@ describe("2-4 features and paths", () => {
   })
   test("3 shared: pubspec by A, router by B => B denied", () => {
     const { c } = setup()
-    assert.equal(c.claim(cl("a", "seedly_app/pubspec.yaml")).feature, "_shared")
+    assert.equal(c.claim(cl("a", "seedly_app/pubspec.yaml")).feature, "app:_shared")
     const r = c.claim(cl("b", "seedly_app/lib/cores/router/app_router.dart"))
     assert.equal(r.granted, false)
-    assert.equal(r.feature, "_shared")
+    assert.equal(r.feature, "app:_shared")
+  })
+  test("3c shared locks are per project: BE go.mod/migration does not block APP pubspec/router", () => {
+    const { c } = setup()
+    assert.equal(c.claim(cl("a", "growpico-be/go.mod")).feature, "be:_shared")
+    const app = c.claim(cl("b", "seedly_app/pubspec.yaml"))
+    assert.equal(app.granted, true)
+    assert.equal(app.feature, "app:_shared")
+    assert.equal(c.claim(cl("b", "seedly_app/lib/cores/router/app_router.dart")).granted, true)
+    const be = c.claim(cl("b", "growpico-be/db/migrations/20261102_01_x.sql"))
+    assert.equal(be.granted, false) // same project's shared files still conflict
+    assert.equal(be.feature, "be:_shared")
+    assert.equal(c.snapshot().locks.length, 2)
+  })
+  test("3d BE shared paths map to be:_shared, distinct from a BE module", () => {
+    const c = DEFAULT_CONFIG
+    for (const p of ["growpico-be/go.sum", "growpico-be/internal/platform/httpx/x.go", "growpico-be/internal/server/server.go", "growpico-be/db/migrations/a.sql"]) {
+      assert.equal(featureOf(p, c), "be:_shared", p)
+    }
+    assert.equal(featureOf("growpico-be/internal/auth/service.go", c), "be:auth")
   })
   test("3b shared: dependency dir and pubspec.lock also shared", () => {
     const c = DEFAULT_CONFIG
-    assert.equal(featureOf("seedly_app/lib/cores/dependency/di.dart", c), "_shared")
-    assert.equal(featureOf("seedly_app/pubspec.lock", c), "_shared")
+    assert.equal(featureOf("seedly_app/lib/cores/dependency/di.dart", c), "app:_shared")
+    assert.equal(featureOf("seedly_app/pubspec.lock", c), "app:_shared")
   })
   test("4 non-feature path granted with feature null, no lock", () => {
     const { c } = setup()
@@ -469,15 +488,20 @@ describe("21 circuit breaker", () => {
 })
 
 describe("22 config hardening and caps", () => {
-  test("h one bad regex does not disable the others", () => {
-    const cfg = { sharedPaths: ["([", "^root\\.yaml$"], pathRules: [{ match: "([", feature: "bad" }, { match: "^f/([^/]+)/", feature: "$1" }] }
+  test("h one bad regex does not disable the others (legacy string entry maps to _shared)", () => {
+    const cfg = { sharedPaths: ["([", { match: "([", feature: "x:_shared" }, { feature: "nomatch:_shared" }, "^root\\.yaml$", { match: "^proj/", feature: "proj:_shared" }], pathRules: [{ match: "([", feature: "bad" }, { match: "^f/([^/]+)/", feature: "$1" }] }
     assert.equal(featureOf("root.yaml", cfg), "_shared")
+    assert.equal(featureOf("proj/a", cfg), "proj:_shared")
     assert.equal(featureOf("f/abc/x", cfg), "abc")
     assert.equal(featureOf("zzz", cfg), null)
   })
-  test("i the cross-cutting feature is named _shared, not shared", () => {
-    assert.equal(featureOf("seedly_app/pubspec.yaml", DEFAULT_CONFIG), "_shared")
+  test("i the cross-cutting feature is named <project>:_shared, not shared", () => {
+    assert.equal(featureOf("seedly_app/pubspec.yaml", DEFAULT_CONFIG), "app:_shared")
     assert.equal(featureOf("seedly_app/lib/features/shared/x.dart", DEFAULT_CONFIG), "shared") // a real feature named shared is distinct
+  })
+  test("j checked-in coordination.json uses the same per-project shared paths as DEFAULT_CONFIG", () => {
+    const repoCfg = configLoader(new URL("../../coordination.json", import.meta.url).pathname)()
+    assert.deepEqual(repoCfg.sharedPaths, DEFAULT_CONFIG.sharedPaths)
   })
   test("feature name is clipped to 200 chars", () => {
     assert.equal(featureOf(`seedly_app/lib/features/${"n".repeat(500)}/x.dart`, DEFAULT_CONFIG).length, 200)

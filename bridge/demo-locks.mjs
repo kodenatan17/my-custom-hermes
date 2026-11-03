@@ -381,7 +381,7 @@ async function main() {
     "opencode:demo-oc-A|garden": "cline:cline:demo-cline",
     "opencode:demo-oc-LOW|garden": "cline:cline:demo-cline",
     "opencode:demo-oc-HIGH|garden": "cline:cline:demo-cline",
-    "cline:cline:demo-cline|_shared": "claude:claude:demo-claude",
+    "cline:cline:demo-cline|app:_shared": "claude:claude:demo-claude",
   }
   const gotWaits = Object.fromEntries(waitingEvents.map((w) => [`${w.who}|${w.feature}`, `${w.waitingOn?.source}:${w.waitingOn?.sessionID}`]))
   const mism = Object.entries(expectWaits).filter(([k, v]) => (gotWaits[k] ?? "") !== v)

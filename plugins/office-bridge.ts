@@ -40,6 +40,11 @@ type OfficeEvent = {
   status?: "ok" | "error" | "interrupted"
   error?: string
   durationMs?: number
+  // Hermes Agent OS correlation (present when Hermes dispatched this run).
+  taskId?: string
+  parentTaskId?: string
+  executionId?: string
+  projectId?: string
 }
 
 const MAX_LONG = 4000
@@ -110,8 +115,18 @@ export default {
       return id
     }
 
+    // Set by the Hermes Agent OS runner when Hermes dispatched this run: links these events to the Hermes task.
+    const agentOs = process.env.AGENT_OS_TASK_ID
+      ? {
+          taskId: process.env.AGENT_OS_TASK_ID,
+          parentTaskId: process.env.AGENT_OS_PARENT_TASK_ID || undefined,
+          executionId: process.env.AGENT_OS_EXECUTION_ID,
+          projectId: process.env.AGENT_OS_PROJECT_ID,
+        }
+      : {}
+
     const emit = (e: Omit<OfficeEvent, "ts">) => {
-      queue = queue.then(() => send({ ...e, source: "opencode", owner: `opencode:${rootOf(e.sessionID)}` })).catch(() => {})
+      queue = queue.then(() => send({ ...e, ...agentOs, source: "opencode", owner: `opencode:${rootOf(e.sessionID)}` })).catch(() => {})
     }
 
     const releaseRoot = (sessionID: string) => {

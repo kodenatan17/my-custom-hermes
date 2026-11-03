@@ -16,7 +16,7 @@ The Seedly Flutter app (`seedly_app/`) is built on Bloc + go_router with a per-f
 
 ## When Not to Use
 
-- Backend, CMS, or firmware work with no Flutter code involved.
+- Backend, CMS, or firmware work with no Flutter code involved. The CMS equivalent is `cms-nextjs-architecture`.
 
 ## Constraints
 

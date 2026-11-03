@@ -3,14 +3,13 @@ description: Nadia - Penulis Dokumenter. Updates documentation, solutioning docs
 mode: subagent
 model: ninerouter/documentation-low
 tools:
+  "*": false
   read: true
   write: true
   edit: true
   grep: true
   glob: true
-  list: true
-  bash: false
-  task: false
+  skill: true
 ---
 
 # Nadia - Penulis Dokumenter

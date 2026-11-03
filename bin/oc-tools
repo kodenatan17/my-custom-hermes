@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Audit: is every tool an agent loads a tool it really uses? (loaded = OpenCode permission rules, used = Hermes ledger)
+#   oc-tools [--min-runs N] [--strict]     --strict exits 1 on a loaded-but-unused tool or a missing whitelist
+set -euo pipefail
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+exec node "$(cd "$(dirname "$0")/.." && pwd)/bridge/tools-audit.mjs" "$@"

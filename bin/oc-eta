@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Progress + estimated time left for a Hermes task (read-only; history from the Hermes Agent OS state dir).
+#
+#   oc-eta <task_id>                 elapsed, steps done/running with tool-call counts, ETA
+#   oc-eta estimate <route>          expected duration of a route before it starts, e.g. oc-eta estimate feature
+#   oc-eta wait <task_id> [--max S]  `oc wait` (live events, default 110 s) followed by the snapshot above
+set -euo pipefail
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+exec node "$(cd "$(dirname "$0")/.." && pwd)/bridge/eta.mjs" "$@"
